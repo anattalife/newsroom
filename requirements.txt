@@ -1,0 +1,8 @@
+Flask>=3.0,<4
+requests>=2.31,<3
+beautifulsoup4>=4.12,<5
+Pillow>=10.0
+cryptography>=42
+Markdown>=3.5,<4
+gunicorn>=22,<24
+tzdata>=2024.1
