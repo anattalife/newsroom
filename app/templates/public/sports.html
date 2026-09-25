@@ -1,0 +1,37 @@
+{% extends "public/base.html" %}
+{% from "public/_sports.html" import game_card with context %}
+{% set cat_name = 'Sports' %}
+{% block title %}Scores & schedules · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap sports" style="padding-top:32px;padding-bottom:48px">
+  <div class="list-head">
+    <div><h1>{{ school.name if school else 'Scores & schedules' }}</h1>
+    <p class="meta" style="margin:4px 0 0">Posted by fans, parents and coaches across {{ S.area or S.town }}. See a score? Tap the game and add it.</p></div>
+    <a class="btn brand" href="{{ url_for('sports.add_schedule') }}">Add a schedule</a>
+  </div>
+  <form class="filters" method="get" action="{{ url_for('sports.scoreboard') }}">
+    <label class="f">School<select name="school" data-autosubmit><option value="">All schools</option>{% for s in schools %}<option value="{{ s.slug }}" {{ 'selected' if school and school.id == s.id }}>{{ s.name }}</option>{% endfor %}</select></label>
+    <label class="f">Sport<select name="sport" data-autosubmit><option value="">All sports</option>{% for sp in sports_used %}<option {{ 'selected' if sport == sp }}>{{ sp }}</option>{% endfor %}</select></label>
+    <noscript><button class="btn">Show</button></noscript>
+  </form>
+
+  <section aria-labelledby="today-h"><h2 class="h-sec" id="today-h">Today</h2>
+    {% if today %}<div class="games">{% for gm in today %}{{ game_card(gm) }}{% endfor %}</div>
+    {% else %}<p class="empty">No games on the schedule today.</p>{% endif %}</section>
+
+  {% if results %}<section aria-labelledby="res-h"><h2 class="h-sec" id="res-h">Latest results</h2>
+    <div class="games">{% for gm in results %}{{ game_card(gm) }}{% endfor %}</div></section>{% endif %}
+
+  <section aria-labelledby="up-h"><h2 class="h-sec" id="up-h">Coming up this week</h2>
+    {% if coming %}<div class="games">{% for gm in coming %}{{ game_card(gm) }}{% endfor %}</div>
+    {% else %}<p class="empty">Nothing scheduled yet. <a href="{{ url_for('sports.add_schedule') }}" style="text-decoration:underline">Paste a schedule</a> and we'll sort it out.</p>{% endif %}</section>
+
+  <section aria-labelledby="sch-h"><h2 class="h-sec" id="sch-h">Schools</h2>
+    {% if schools %}<div class="schools">{% for s in schools %}<a class="school" href="{{ url_for('sports.school_page', slug=s.slug) }}"><i style="background:{{ s.color }}">{{ (s.short or s.name)[:1] }}</i><span><b>{{ s.name }}</b><span class="meta">{{ s.mascot ~ ' · ' if s.mascot }}{{ s.level }}{{ ' · ' ~ s.town if s.town }}</span></span></a>{% endfor %}</div>
+    {% else %}<p class="empty">No schools yet. <a href="{{ url_for('sports.add_schedule') }}" style="text-decoration:underline">Add the first one</a>.</p>{% endif %}</section>
+
+  {% if stories %}<section aria-labelledby="st-h"><h2 class="h-sec" id="st-h">Sports stories</h2>
+    {% for s in stories %}<a class="li" href="{{ url_for('public.article', slug=s.slug) }}"><span class="meta">{{ s.published_at|ago }}</span><b>{{ s.headline }}</b></a>{% endfor %}
+    <p><a href="{{ category_url('Sports') }}" style="color:var(--blue);font-weight:600">All sports stories</a></p></section>{% endif %}
+</div>
+{% endblock %}

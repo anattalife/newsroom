@@ -1,0 +1,76 @@
+{% extends "admin/base.html" %}
+{% set active = 'weather' %}
+{% block title %}Weather{% endblock %}
+{% block main %}
+<div class="head">
+  <div><h1>Weather</h1><div class="sub">Forecasts, current conditions, alerts and radar from the National Weather Service. Free, and updated every 15 minutes.</div></div>
+  <div class="btns">
+    <form method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn" type="submit" name="action" value="refresh" {{ 'disabled' if not c.weather_locations }}>Update now</button></form>
+    <a class="btn dark" href="{{ url_for('public.weather_page') }}" target="_blank" rel="noopener">View weather page ↗</a>
+  </div>
+</div>
+
+<section class="card" style="display:flex;flex-direction:column;gap:12px">
+  <h2>Locations</h2>
+  <p class="small muted" style="margin:0">The first location is the main one: it's shown on the homepage and drives the alert banner. Readers can switch between locations on the weather page.</p>
+  {% for loc in c.weather_locations %}
+  {% set st = status.get(loc.slug) %}
+  <div class="row" style="align-items:flex-start">
+    <span style="min-width:0">
+      <form method="post" class="btns" style="flex-wrap:nowrap"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="slug" value="{{ loc.slug }}">
+        <input type="text" name="name" value="{{ loc.name }}" aria-label="Location name" style="max-width:240px;font-weight:600">
+        <button class="btn small" type="submit" name="action" value="rename">Rename</button></form>
+      <span class="m">{{ loc.lat }}, {{ loc.lon }} ·
+      {% if st and st.error %}<span style="color:var(--red)">{{ st.error }}</span>{% elif st and st.updated_at %}updated {{ st.updated_at|ago }}{% else %}waiting for first update{% endif %}</span>
+      {% if loop.first %}<span class="pill ok" style="margin-left:6px">Main</span>{% endif %}
+    </span>
+    <form method="post" class="btns" style="flex-wrap:nowrap"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="slug" value="{{ loc.slug }}">
+      {% if not loop.first %}<button class="btn small" type="submit" name="action" value="up">Make main</button>{% endif %}
+      <button class="btn small danger" type="submit" name="action" value="remove" data-confirm="Remove {{ loc.name }}?">Remove</button></form>
+  </div>
+  {% else %}<p class="notice" style="margin:0">No location yet. Add your town below and the weather page starts working.</p>{% endfor %}
+
+  <form method="post" class="form" style="border-top:1px solid var(--line2);padding-top:14px">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label class="f">Add a location<span class="help">Type a town and state, then choose the right match.</span>
+      <span class="btns" style="flex-wrap:nowrap"><input type="text" name="q" value="{{ query }}" placeholder="Riverton, Iowa"><button class="btn" type="submit" name="action" value="search">Find</button></span></label>
+  </form>
+  {% for r in results %}
+  <form method="post" class="row"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="lat" value="{{ r.lat }}"><input type="hidden" name="lon" value="{{ r.lon }}">
+    <span style="min-width:0"><span class="t">{{ r.name }}</span><br><span class="m">{{ r.lat }}, {{ r.lon }}</span></span>
+    <span class="btns" style="flex-wrap:nowrap"><input type="text" name="name" value="{{ r.name.split(',')[0] }}" aria-label="Name to show" style="width:160px"><button class="btn small dark" type="submit" name="action" value="add">Add</button></span>
+  </form>
+  {% endfor %}
+  <details class="small"><summary style="cursor:pointer;color:var(--blue)">Enter coordinates yourself</summary>
+    <form method="post" class="three" style="margin-top:10px;align-items:end"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label class="f">Name<input type="text" name="name" required></label>
+      <label class="f">Latitude<input type="text" name="lat" required placeholder="41.5868"></label>
+      <label class="f">Longitude<input type="text" name="lon" required placeholder="-93.6250"></label>
+      <button class="btn" type="submit" name="action" value="add">Add</button>
+    </form>
+    <p class="muted">In Google Maps, right-click a spot and click the numbers at the top to copy them.</p>
+  </details>
+</section>
+
+<form class="card form" method="post">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <h2>Display</h2>
+  <label class="check"><input type="checkbox" name="weather_enabled" {{ 'checked' if c.weather_enabled }}> <span><b>Show the weather page</b><br><span class="small muted">Adds Weather to the site's menu.</span></span></label>
+  <label class="f">Units<select name="weather_units" style="max-width:260px"><option value="F" {{ 'selected' if c.weather_units == 'F' }}>Fahrenheit, mph</option><option value="C" {{ 'selected' if c.weather_units == 'C' }}>Celsius, km/h</option></select></label>
+  <fieldset style="border:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px">
+    <legend style="font-size:13px;font-weight:600;margin-bottom:8px;padding:0">Sections on the weather page</legend>
+    {% for k, l in [('weather_show_alerts','Active alerts'),('weather_show_current','Current conditions'),('weather_show_hourly','Next 24 hours'),('weather_show_daily','7-day forecast'),('weather_show_radar','Radar map')] %}
+    <label class="check"><input type="checkbox" name="{{ k }}" {{ 'checked' if c[k] }}> {{ l }}</label>
+    {% endfor %}
+  </fieldset>
+  <label class="check"><input type="checkbox" name="weather_home_strip" {{ 'checked' if c.weather_home_strip }}> <span><b>Weather strip on the homepage</b><br><span class="small muted">Current temperature, today's high and low, and a link to the full forecast.</span></span></label>
+  <label class="f">Alert banner across the top of every page<select name="weather_alert_banner" style="max-width:420px">
+    <option value="severe" {{ 'selected' if c.weather_alert_banner == 'severe' }}>Severe and extreme alerts only (warnings)</option>
+    <option value="all" {{ 'selected' if c.weather_alert_banner == 'all' }}>All alerts, including advisories and watches</option>
+    <option value="none" {{ 'selected' if c.weather_alert_banner == 'none' }}>Never</option></select>
+    <span class="help">Uses the main location. This is separate from the Weather alerts source, which turns alerts into news items.</span></label>
+  <div class="btns"><button class="btn dark" type="submit" name="action" value="save">Save</button></div>
+</form>
+<p class="small muted">Weather data covers US locations only. Place search uses OpenStreetMap.</p>
+{% endblock %}

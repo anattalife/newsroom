@@ -1,0 +1,16 @@
+{# The box at the end of a partner's story. preview=True adds hooks so the manage page can update it live. #}
+{% macro authorbox(org, more=[], preview=False) %}
+<aside class="authorbox" aria-label="About {{ org.name }}"{% if preview %} data-ab-preview{% endif %}>
+  {% if org.logo %}<img src="{{ media_url(org.logo) }}" alt="{{ org.name }} logo" data-ab-logo>{% endif %}
+  {% if preview or not org.logo %}<span class="ab-mark" aria-hidden="true" data-ab-mark {% if org.logo %}hidden{% endif %}>{{ org.name[:1] }}</span>{% endif %}
+  {% if preview and not org.logo %}<img alt="" data-ab-logo hidden>{% endif %}
+  <div class="ab-body">
+    <span class="ab-kicker">From our community partner</span>
+    <b class="ab-name">{{ org.name }}</b>
+    {% if org.description or preview %}<p data-ab-about {% if not org.description %}hidden{% endif %}>{{ org.description }}</p>{% endif %}
+    {% if org.address or preview %}<span class="meta" data-ab-address {% if not org.address %}hidden{% endif %}>{{ org.address }}</span>{% endif %}
+    <div class="ab-links">{% if org.website or preview %}<a class="btn" href="{{ org.website or '#' }}" rel="noopener nofollow" target="_blank" data-ab-website {% if not org.website %}hidden{% endif %}>Visit their website</a>{% endif %}</div>
+    {% if more %}<div class="ab-more"><span class="meta">More from {{ org.name }}</span>{% for m in more %}<a href="{{ url_for('public.article', slug=m.slug) }}">{{ m.headline }}</a>{% endfor %}</div>{% endif %}
+  </div>
+</aside>
+{% endmacro %}

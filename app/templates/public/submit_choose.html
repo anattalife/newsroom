@@ -1,0 +1,21 @@
+{% extends "public/base.html" %}
+{% set tab = 'submit' %}
+{% block title %}Submit · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap"><div class="page wide">
+  <h1>How do you want to send this?</h1>
+  <p class="prose">Either way, the newsroom checks it before it's published, and you choose whether your name is shown.</p>
+  <div class="choose">
+    <a class="choice" href="{{ url_for('members.submit_form', kind='article') }}">
+      <span class="kicker">Write it myself</span><b>I'll write the article</b>
+      <span>Write the whole story in a simple editor, with a short writing guide beside it. Add photos.</span>
+      <span class="meta">Published as “By @you”. +{{ S.pts_article }} points.</span></a>
+    <a class="choice" href="{{ url_for('members.submit_form', kind='facts') }}">
+      <span class="kicker">Just the facts</span><b>I'll send what I know</b>
+      <span>Fill in a few short boxes: what, where, when, who and how you know. The newsroom writes it.</span>
+      <span class="meta">Credited “Tip from @you”. +{{ S.pts_facts }} points.</span></a>
+  </div>
+  {% if not member %}<p class="prose" style="margin-top:20px"><a class="btn brand" href="{{ url_for('members.join', next=request.path) }}">Join free to submit</a> <a class="btn" href="{{ url_for('members.login', next=request.path) }}">Log in</a></p>{% endif %}
+  {% if S.tips_enabled %}<p class="meta" style="margin-top:16px">In a hurry, or want to stay anonymous? <a href="{{ url_for('public.tip') }}" style="text-decoration:underline">Send a quick tip</a>, no account needed.</p>{% endif %}
+</div></div>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% macro game_card(gm, show_team=True) %}
+{% set won = gm.result == 'W' %}{% set lost = gm.result == 'L' %}
+<a class="gm {{ gm.status }}" href="{{ url_for('sports.game', gid=gm.id) }}">
+  <span class="gm-k"><i style="background:{{ gm.color }}"></i>{{ gm.team if show_team else gm.sport_label }}</span>
+  <span class="gm-r {{ 'win' if won }}"><span>{{ gm.us }}</span>{% if gm.has_score %}<b>{{ gm.our_score }}</b>{% endif %}</span>
+  <span class="gm-r {{ 'win' if lost }}"><span>{{ 'at ' if gm.home == 'away' }}{{ gm.opponent }}</span>{% if gm.has_score %}<b>{{ gm.their_score }}</b>{% endif %}</span>
+  <span class="gm-s">{% if gm.live == 'live' and gm.status != 'live' %}<b class="tag live">Live now</b> · {% endif %}{% if gm.status == 'final' %}<b class="tag final">Final{% if gm.detail %} · {{ gm.detail }}{% endif %}</b>{% elif gm.status == 'live' %}<b class="tag live">Live{% if gm.detail %} · {{ gm.detail }}{% endif %}</b>{% elif gm.status in ('postponed', 'cancelled') %}<b class="tag off">{{ gm.status_label }}</b>{% else %}{{ gm.day_label }} · {{ gm.time_label }}{% endif %}{% if gm.status in ('final', 'live') %} · {{ gm.day_label }}{% endif %}{% if gm.video %} · <b class="vid">▶ {{ 'Live stream' if gm.video == 'stream' else 'Video' }}</b>{% endif %}</span>
+</a>
+{% endmacro %}
+
+{% macro strip_chip(gm) %}
+<a class="sc" href="{{ url_for('sports.game', gid=gm.id) }}">
+  <span class="sc-k">{% if gm.status == 'final' %}Final{% elif gm.status == 'live' %}<b class="livedot">Live</b>{% else %}{{ gm.time_label }}{% endif %} · {{ gm.sport_label }}</span>
+  <span class="sc-r {{ 'win' if gm.result == 'W' }}"><span>{{ gm.us }}</span><b>{{ gm.our_score if gm.has_score }}</b></span>
+  <span class="sc-r {{ 'win' if gm.result == 'L' }}"><span>{{ gm.opponent }}</span><b>{{ gm.their_score if gm.has_score }}</b></span>
+</a>
+{% endmacro %}

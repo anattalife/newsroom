@@ -1,0 +1,57 @@
+{% extends "admin/base.html" %}
+{% set active = 'sources' %}
+{% set T = TYPES[typ] %}
+{% block title %}{{ 'Edit source' if src else 'Add source' }}{% endblock %}
+{% block main %}
+<div class="head"><div><a class="eyebrow" href="{{ url_for('admin.sources_list') }}">← Sources</a><h1>{{ 'Edit ' ~ src.name if src else 'Add source' }}</h1></div></div>
+<form class="card form" method="post" style="max-width:760px">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {% if src %}<input type="hidden" name="id" value="{{ src.id }}">{% endif %}
+  <input type="hidden" name="type" value="{{ typ }}">
+  {% if not src %}
+  <fieldset style="border:none;margin:0;padding:0">
+    <legend style="font-size:14px;font-weight:600;margin-bottom:10px;padding:0">Type</legend>
+    <div class="types">
+    {% for k, t in TYPES.items() if not t.get('builtin') %}
+      <a class="type {{ 'on' if k == typ }} {{ 'dis' if t.stage > 1 }}" href="{{ url_for('admin.source_edit', type=k) }}" {% if k == typ %}aria-current="true"{% endif %} {% if t.stage > 1 %}aria-disabled="true"{% endif %}>
+        <b style="font-size:14px">{{ t.label }}</b><small>{{ ('Stage ' ~ t.stage) if t.stage > 1 else t.hint }}</small></a>
+    {% endfor %}
+    <a class="type" href="{{ url_for('admin.queue', sid=nav.builtins|selectattr('type','equalto','manual')|map(attribute='id')|first) }}"><b style="font-size:14px">Manual add</b><small>Paste a post or article</small></a>
+    </div>
+  </fieldset>
+  {% endif %}
+  <label class="f">Name<input type="text" name="name" required value="{{ src.name if src else '' }}" placeholder="e.g. Police department news releases"></label>
+  {% for fld in T.fields %}
+    {% if fld.type == 'chips' %}
+    <div class="f"><span>{{ fld.label }}</span>
+      <div class="chips" data-name="cfg_{{ fld.key }}">{% for c in cfg.get(fld.key, []) %}<span class="chip">{{ c }}<input type="hidden" name="cfg_{{ fld.key }}" value="{{ c }}"><button type="button" aria-label="Remove {{ c }}">×</button></span>{% endfor %}<input type="text" aria-label="Add to {{ fld.label }}" placeholder="Add…"></div>
+      <span class="help">{{ fld.help }} Press Enter after each.</span></div>
+    {% elif fld.type == 'secret' %}
+    <label class="f">{{ fld.label }}<input type="password" name="cfg_{{ fld.key }}" autocomplete="off" placeholder="{{ 'Saved. Leave blank to keep it' if has_pw else '' }}"><span class="help">{{ fld.help }}</span></label>
+    {% elif fld.type == 'select' %}
+    <label class="f">{{ fld.label }}<select name="cfg_{{ fld.key }}">{% for v, l in fld.options %}<option value="{{ v }}" {{ 'selected' if cfg.get(fld.key) == v }}>{{ l }}</option>{% endfor %}</select><span class="help">{{ fld.help }}</span></label>
+    {% else %}
+    <label class="f">{{ fld.label }}<input type="{{ 'url' if fld.type == 'url' else 'text' }}" name="cfg_{{ fld.key }}" value="{{ cfg.get(fld.key, 'INBOX' if fld.key == 'folder' else '') }}"><span class="help">{{ fld.help }}</span></label>
+    {% endif %}
+  {% endfor %}
+  <div class="three">
+    <label class="f">Trust level<select name="trust">{% for k, l in TRUST.items() %}<option value="{{ k }}" {{ 'selected' if (src.trust if src else T.default_trust) == k }}>{{ l }}</option>{% endfor %}</select></label>
+    <label class="f">Folder<select name="folder_id"><option value="">Unsorted</option>{% for fo in folder_list %}<option value="{{ fo.id }}" {{ 'selected' if (src.folder_id if src else pick_folder) == fo.id }}>{{ fo.label }}</option>{% endfor %}</select></label>
+    <label class="f">Default category<select name="category">{% for c in categories %}<option {{ 'selected' if (src.category if src else T.get('default_category', 'Local News')) == c }}>{{ c }}</option>{% endfor %}</select></label>
+    <label class="f">Check every<select name="interval_min">{% for m, l in [(5,'5 minutes'),(10,'10 minutes'),(15,'15 minutes'),(30,'30 minutes'),(60,'1 hour'),(180,'3 hours'),(360,'6 hours'),(1440,'Once a day')] %}<option value="{{ m }}" {{ 'selected' if (src.interval_min if src else T.default_interval) == m }}>{{ l }}</option>{% endfor %}</select></label>
+  </div>
+  <fieldset style="border:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px">
+    <legend style="font-size:13px;font-weight:600;margin-bottom:8px;padding:0">Approval rule</legend>
+    <label class="check"><input type="radio" name="approval" value="always" {{ 'checked' if not src or src.approval == 'always' }}> <span>List new items for me to pick from <span class="muted">(recommended; AI is only used when you click Develop this story)</span></span></label>
+    <label class="check"><input type="radio" name="approval" value="auto_high" {{ 'checked' if src and src.approval == 'auto_high' }}> <span>{% if typ == 'wire' %}Publish new wire stories automatically, as the wire wrote them <span class="muted">(no AI, no cost; keeps National & World fresh)</span>{% else %}Write every new item automatically, and publish it when it's high confidence with nothing to verify <span class="muted">(official sources only; uses AI on every item; good for weather alerts)</span>{% endif %}</span></label>
+  </fieldset>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <button class="btn" type="button" data-test-source="{{ url_for('admin.source_test') }}" style="align-self:flex-start;color:var(--blue);border-color:var(--blue)">Test this source</button>
+    <div id="test-out" class="test-out" role="status" hidden></div>
+  </div>
+  <div class="btns" style="justify-content:space-between;border-top:1px solid var(--line2);padding-top:16px">
+    <span class="btns"><button class="btn dark" type="submit">{{ 'Save' if src else 'Add source' }}</button><a class="btn" href="{{ url_for('admin.sources_list') }}">Cancel</a></span>
+    {% if src %}<button class="btn danger" type="submit" formaction="{{ url_for('admin.source_delete', sid=src.id) }}" data-confirm="Delete this source? Its published stories stay on the site.">Delete source</button>{% endif %}
+  </div>
+</form>
+{% endblock %}

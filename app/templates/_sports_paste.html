@@ -1,0 +1,42 @@
+{# Shared by the public "Add a schedule" page and the newsroom's import page. #}
+{% if error %}<div class="err" role="alert">{{ error }}</div>{% endif %}
+{% if not rows %}
+<form method="post" class="stack paste">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="prow">
+    <label class="f grow">School<select name="school_id"><option value="">Choose…</option>{% for s in schools %}<option value="{{ s.id }}" {{ 'selected' if (f.school_id or pick_school)|string == s.id|string }}>{{ s.name }}</option>{% endfor %}</select></label>
+    <label class="f grow">Team (optional)<select name="team_id"><option value="">Let the AI work it out from the schedule</option>{% for grp in teams|groupby('name') %}<optgroup label="{{ grp.grouper }}">{% for t in grp.list %}<option value="{{ t.id }}" {{ 'selected' if (f.team_id or pick_team)|string == t.id|string }}>{{ t.label }}</option>{% endfor %}</optgroup>{% endfor %}</select></label>
+  </div>
+  <details {{ 'open' if not schools or f.new_school }}><summary>School not listed? Add it</summary>
+    <div class="prow" style="margin-top:10px"><label class="f grow">School name<input type="text" name="new_school" maxlength="120" placeholder="Hillsdale High School" value="{{ f.new_school }}"></label>
+      <label class="f grow">Town<input type="text" name="new_town" maxlength="80" value="{{ f.new_town }}"></label>
+      <label class="f grow">Kind<select name="new_level">{% for l in school_levels %}<option {{ 'selected' if f.new_level == l }}>{{ l }}</option>{% endfor %}</select></label></div>
+  </details>
+  <label class="f">Paste the schedule<textarea name="text" rows="12" required placeholder="Copy it from the school's website, a PDF, a Facebook post or an email. Any format is fine: messy is OK.">{{ f.text }}</textarea></label>
+  <label class="f" style="max-width:260px">Season (optional)<input type="text" name="season" maxlength="20" placeholder="2026-27" value="{{ f.season }}"></label>
+  <div><button class="btn brand solid go" name="action" value="read">Read it</button> <span class="small meta muted">The AI lays the games out in a table for you to check. Nothing is added yet.</span></div>
+</form>
+{% else %}
+<form method="post" class="stack paste">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="school_id" value="{{ school.id }}"><input type="hidden" name="team_id" value="{{ team.id if team }}">
+  <p style="margin:0"><b>{{ rows|length }} game{{ 's' if rows|length != 1 }} found for {{ team.label if team else school.name }}.</b> Fix anything that's off, untick anything that isn't a game, then add them.</p>
+  <div class="paste-scroll"><table class="paste-table">
+    <thead><tr><th><input type="checkbox" checked data-check-rows aria-label="Tick all"></th><th>Date</th><th>Time</th><th>Opponent</th><th>Where</th>{% if not team %}<th>Sport</th><th>Boys/Girls</th><th>Level</th>{% endif %}<th>Score</th><th>Place / note</th></tr></thead>
+    <tbody>{% for r in rows %}{% set i = loop.index0 %}<tr>
+      <td><input type="checkbox" name="keep" value="{{ i }}" checked aria-label="Add this game"></td>
+      <td><input type="date" name="date" value="{{ r.date }}"></td>
+      <td><input type="time" name="time" value="{{ r.time }}"></td>
+      <td><input type="text" name="opponent" value="{{ r.opponent }}" maxlength="120"></td>
+      <td><select name="home">{% for k, l in [('home','Home'),('away','Away'),('neutral','Neutral')] %}<option value="{{ k }}" {{ 'selected' if r.home == k }}>{{ l }}</option>{% endfor %}</select></td>
+      {% if not team %}<td><select name="sport">{% for sp in sports_list %}<option {{ 'selected' if r.sport == sp }}>{{ sp }}</option>{% endfor %}{% if r.sport not in sports_list %}<option selected>{{ r.sport }}</option>{% endif %}</select></td>
+      <td><select name="gender">{% for x in genders %}<option value="{{ x }}" {{ 'selected' if r.gender == x }}>{{ x or '—' }}</option>{% endfor %}</select></td>
+      <td><select name="level">{% for x in levels %}<option {{ 'selected' if r.level == x }}>{{ x }}</option>{% endfor %}</select></td>
+      {% endif %}
+      <td class="sc2"><input type="text" inputmode="numeric" name="our_score" value="{{ r.our_score if r.our_score is not none }}" aria-label="Our score" size="3">–<input type="text" inputmode="numeric" name="their_score" value="{{ r.their_score if r.their_score is not none }}" aria-label="Their score" size="3"></td>
+      <td><input type="text" name="location" value="{{ r.location }}" maxlength="160" placeholder="Place"><input type="text" name="note" value="{{ r.note }}" maxlength="160" placeholder="Note">{% if team %}<input type="hidden" name="sport" value="{{ team.sport }}"><input type="hidden" name="gender" value="{{ team.gender }}"><input type="hidden" name="level" value="{{ team.level }}">{% endif %}</td>
+    </tr>{% endfor %}</tbody></table></div>
+  <div><button class="btn brand solid go" name="action" value="save">Add these games</button> <a href="{{ request.path }}" style="margin-left:10px;text-decoration:underline">Start over</a></div>
+  <p class="small meta muted" style="margin:0">Games already on the schedule (same team, day and opponent) are updated, not doubled.</p>
+</form>
+{% endif %}

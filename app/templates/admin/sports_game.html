@@ -1,0 +1,33 @@
+{% extends "admin/base.html" %}
+{% set active = 'sports' %}
+{% block title %}{{ gm.matchup }}{% endblock %}
+{% block main %}
+<div class="head"><div><h1>{{ gm.matchup }}</h1><div class="sub">{{ gm.team }} · {{ gm.day_label }} · {{ gm.time_label }}{% if gm.reporter %} · score from @{{ gm.reporter }}{% endif %}</div></div>
+<div class="btns"><a class="btn" href="{{ url_for('sports.game', gid=gm.id) }}" target="_blank" rel="noopener">Public page ↗</a><a class="btn" href="{{ url_for('admin.sports_admin', tab='games') }}">← Games</a></div></div>
+<form method="post" class="card form" style="max-width:760px">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="grid2">
+    <label class="f">Opponent<input type="text" name="opponent" value="{{ gm.opponent }}" maxlength="120"></label>
+    <label class="f">Where<select name="home">{% for k, l in [('home','Home'),('away','Away'),('neutral','Neutral site')] %}<option value="{{ k }}" {{ 'selected' if gm.home == k }}>{{ l }}</option>{% endfor %}</select></label>
+    <label class="f">Date<input type="date" name="date" value="{{ gm.date }}"></label>
+    <label class="f">Time <span class="help">Leave empty if not known</span><input type="time" name="time" value="{{ '' if gm.time_tbd else gm.time }}"></label>
+    <label class="f">Place<input type="text" name="location" value="{{ gm.location or '' }}" maxlength="160"></label>
+    <label class="f">Note<input type="text" name="note" value="{{ gm.note or '' }}" maxlength="160"></label>
+    <label class="f">{{ gm.us }} score<input type="number" name="our_score" min="0" value="{{ gm.our_score if gm.our_score is not none }}"></label>
+    <label class="f">{{ gm.opponent }} score<input type="number" name="their_score" min="0" value="{{ gm.their_score if gm.their_score is not none }}"></label>
+    <label class="f">Status<select name="status">{% for k, l in statuses.items() %}<option value="{{ k }}" {{ 'selected' if gm.status == k }}>{{ l }}</option>{% endfor %}</select></label>
+    <label class="f">Extra<input type="text" name="detail" value="{{ gm.detail or '' }}" maxlength="40" placeholder="OT, 3rd quarter"></label>
+  </div>
+  <label class="check" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="locked" {{ 'checked' if gm.locked }}> Locked: members can't change it</label>
+  <div class="btns"><button class="btn dark" name="action" value="save">Save</button><button class="btn" name="action" value="revert">Undo last change</button><button class="btn" name="action" value="delete" data-confirm="Remove this game for good?">Remove game</button></div>
+</form>
+<h2 id="videos">Live streams &amp; videos</h2>
+<div class="card">{% for v in videos %}<div class="row"><span>{% if v.kind == 'stream' %}<b>Live stream</b>{% else %}Video{% endif %} · <a href="{{ v.url }}" target="_blank" rel="noopener nofollow">{{ v.url[:70] }}</a> <span class="small muted">{{ ('@' ~ v.username) if v.username else 'newsroom' }} · {{ v.created_at|ago }}{% if v.status != 'visible' %} · removed{% endif %}</span></span>
+  {% if v.status == 'visible' %}<form method="post" class="btns"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="item" value="{{ v.id }}"><button class="btn small" name="action" value="hide_video" data-confirm="Remove this video? Any points it earned are taken back.">Remove</button></form>{% endif %}</div>{% else %}<p class="empty">No videos yet.</p>{% endfor %}
+  <form method="post" class="btns" style="margin-top:10px"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="text" name="url" placeholder="YouTube or Facebook video link" style="flex:1;min-width:240px"><select name="kind" style="width:auto"><option value="stream">Live stream</option><option value="video">Video</option></select><button class="btn small" name="action" value="add_video">Add</button></form></div>
+<h2 id="feed">Game feed</h2>
+<div class="card">{% for u in feed %}<div class="row"><span><b>@{{ u.username or '?' }}</b> {% if u.our_score is not none %}<b>{{ u.our_score }}–{{ u.their_score }}</b> {% endif %}{{ u.body }} <span class="small muted">{{ u.created_at|ago }}{% if u.status != 'visible' %} · hidden{% endif %}</span></span>
+  {% if u.status == 'visible' %}<form method="post" class="btns"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="item" value="{{ u.id }}"><button class="btn small" name="action" value="hide_update">Hide</button></form>{% endif %}</div>{% else %}<p class="empty">No live updates for this game.</p>{% endfor %}</div>
+<h2>History</h2>
+<div class="card">{% for l in log %}<div class="row"><span>{{ l.change }}</span><span class="small muted">{% if l.username %}@{{ l.username }}{% elif l.staff %}{{ l.staff }}{% endif %} · {{ l.created_at|ago }}</span></div>{% else %}<p class="empty">No changes yet.</p>{% endfor %}</div>
+{% endblock %}

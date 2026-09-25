@@ -1,0 +1,53 @@
+{% extends "admin/base.html" %}
+{% set active = 'overview' %}
+{% block title %}Overview{% endblock %}
+{% block main %}
+<div class="head">
+  <div><h1>Overview</h1><div class="sub">{{ today_local() }}{% if last_check %} · Last check {{ last_check|ago }}{% endif %}</div></div>
+  <div class="btns">
+    {% if can('editor') %}<form method="post" action="{{ url_for('admin.check_now') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn" type="submit">Check sources now</button></form>{% endif %}
+    <a class="btn dark" href="{{ url_for('admin.queue') }}">Open Everything</a>
+  </div>
+</div>
+
+{% if not ai_ready %}
+<div class="notice"><h2>The AI is off</h2><p style="margin:0">{{ ai_problem }} Sources are still collected, members can still submit, and you can publish member articles, wire stories and event listings.</p>
+{% if can('owner') %}<p style="margin:8px 0 0"><a href="{{ url_for('admin.settings_section', section='ai') }}"><b>Open AI settings</b></a></p>{% endif %}</div>
+{% endif %}
+
+<div class="grid4 five">
+  <a class="card stat" href="{{ url_for('admin.queue', tab='new') }}"><span class="l">New items</span><span class="n">{{ new_items }}</span><span class="d">Pick what to develop{% if developing %} · {{ developing }} in development{% endif %}</span></a>
+  <a class="card stat" href="{{ url_for('admin.queue', tab='drafts') }}"><span class="l">Drafts to review</span><span class="n">{{ drafts }}</span><span class="d">{{ flagged }} flagged to verify</span></a>
+  <a class="card stat" href="{{ url_for('admin.submissions') }}"><span class="l">From members</span><span class="n">{{ subs }}</span><span class="d">Articles and facts waiting</span></a>
+  <a class="card stat" href="{{ url_for('admin.tips') }}"><span class="l">New reader tips</span><span class="n">{{ tips_new }}</span><span class="d">{{ tips_photos }} with photos</span></a>
+  <a class="card stat" href="{{ url_for('admin.sources_list') }}"><span class="l">Sources working</span><span class="n">{{ sources_total - broken|length }} of {{ sources_total }}</span><span class="d" {% if broken %}style="color:#8A4B00"{% endif %}>{{ broken|length }} need{{ 's' if broken|length == 1 }} attention</span></a>
+</div>
+
+<div class="cols">
+  <section class="card grow">
+    <h2 style="margin-bottom:8px">Waiting by source</h2>
+    {% for w in waiting %}
+    <a class="row" href="{{ url_for('admin.queue', sid=w.id) }}">
+      <span><span class="t">{{ w.name }}</span><br><span class="m">{{ TYPES[w.type].label }} · {{ TRUST[w.trust] }}{% if w.last_checked %} · checked {{ w.last_checked|ago }}{% endif %}</span></span>
+      <span class="btns">{% if w.type == 'tips' %}<span class="pill {{ 'warn' if w.items else '' }}">{{ w.items }} new tip{{ 's' if w.items != 1 }}</span>{% else %}<span class="pill {{ 'warn' if w.items else '' }}">{{ w.items }} new</span><span class="pill {{ 'ok' if w.drafts else '' }}">{{ w.drafts }} draft{{ 's' if w.drafts != 1 }}</span>{% endif %}</span>
+    </a>
+    {% else %}<p class="empty">No sources yet. <a href="{{ url_for('admin.source_edit') }}">Add your first source</a>.</p>{% endfor %}
+  </section>
+  <div class="side-col">
+    {% for b in broken %}
+    <section class="notice"><h2>Needs attention: {{ b.name }}</h2><p style="margin:0 0 8px">{{ b.last_error }}</p><a href="{{ url_for('admin.source_edit', sid=b.id) }}"><b>Open source settings</b></a></section>
+    {% endfor %}
+    <section class="card" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><h2>Recently published</h2><span class="small muted">{{ published_today }} today{% if scheduled %} · {{ scheduled }} scheduled{% endif %}</span></div>
+      {% for r in recent %}
+      <div style="border-top:1px solid var(--line2);padding-top:10px"><a href="{{ url_for('admin.story', sid=r.id) }}" style="color:var(--ink);font-weight:500">{{ r.headline }}</a><br><span class="small muted">{{ r.published_at|ago }}{% if r.breaking %} · breaking{% endif %}</span></div>
+      {% else %}<p class="muted small" style="margin:0">Nothing published yet.</p>{% endfor %}
+    </section>
+    <section class="card" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><h2>AI spending this month</h2><span class="small muted">${{ '%.2f'|format(spend) }}{% if cap %} of ${{ cap|int }} cap{% endif %}</span></div>
+      <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="{{ cap or 1 }}" aria-valuenow="{{ spend }}" aria-label="AI spending"><div style="width:{{ [100, (spend / cap * 100) if cap else 0]|min }}%"></div></div>
+      <span class="small muted">An estimate based on the prices in Settings → AI writing.</span>
+    </section>
+  </div>
+</div>
+{% endblock %}

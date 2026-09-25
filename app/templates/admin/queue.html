@@ -1,0 +1,156 @@
+{% extends "admin/base.html" %}
+{% set active = ('src' ~ src.id) if src else (('fold' ~ folder.id) if folder else 'all') %}
+{% block title %}{{ src.name if src else (folder.name if folder else 'New from sources') }}{% endblock %}
+{% block main %}
+<div class="head">
+  <div>
+    <div class="eyebrow">{% if folder %}Folder{% for p in folder.path %} · <a href="{{ url_for('admin.queue', fid=p.id) }}">{{ p.name }}</a>{% endfor %}{% else %}Approval page{% endif %}</div>
+    <h1>{{ src.name if src else (folder.name if folder else 'New from sources') }}</h1>
+    {% if src and not src.builtin %}
+    <div class="sub">{{ TYPES[src.type].label }}{% if config.url %} · <span style="word-break:break-all">{{ config.url }}</span>{% endif %} · Trust: {{ TRUST[src.trust] }}{% if src.last_checked %} · checked {{ src.last_checked|ago }}{% endif %}</div>
+    {% elif src and src.type == 'manual' %}
+    <div class="sub">Paste a link, a Facebook post, an article you subscribe to, or anything else, then develop it into a story.</div>
+    {% elif folder %}<div class="sub">New items and drafts from every source in this folder{{ ' and its subfolders' if folder.subfolders }}.</div>
+    {% else %}<div class="sub">New items and drafts from all your sources. (Member submissions, tips and manual adds have their own pages; <a href="{{ url_for('admin.content') }}">All content</a> finds anything.) Tick items from different sources to develop them into one story.</div>{% endif %}
+  </div>
+  {% if src and not src.builtin and can('editor') %}<a class="btn" href="{{ url_for('admin.source_edit', sid=src.id) }}">Edit source and rules</a>{% endif %}
+</div>
+
+{% if folder %}
+<div class="foldbar">
+  {% for sf in folder.subfolders %}<a class="fchip fold" href="{{ url_for('admin.queue', fid=sf.id) }}">📁 {{ sf.name }}</a>{% endfor %}
+  {% for s in folder.sources %}<a class="fchip {{ 'off' if not s.enabled }} {{ 'bad' if s.enabled and s.last_error }}" href="{{ url_for('admin.queue', sid=s.id) }}">{{ s.name }}</a>{% endfor %}
+  <a class="fchip more" href="{{ url_for('admin.sources_list', folder=folder.id) }}">Manage this folder →</a>
+</div>
+{% endif %}
+{% if src and src.last_error %}<div class="notice"><h2>This source has a problem</h2><p style="margin:0">{{ src.last_error }}</p></div>{% endif %}
+{% if src and not src.enabled %}<div class="notice"><h2>Paused</h2><p style="margin:0">This source isn't being checked. Resume it from Sources.</p></div>{% endif %}
+
+{% if src and not src.builtin %}
+<div class="rules"><b>Rules for this source:</b>
+  <span>{% if src.approval == 'auto_high' %}{{ 'Publishes new wire stories automatically' if src.type == 'wire' else 'Writes and publishes clean, high-confidence items automatically' }}{% else %}You pick what gets developed{% endif %}</span>
+  <span>Default category: {{ src.category }}</span>
+  <span>Checked every {{ src.interval_min }} min</span>
+</div>
+{% endif %}
+
+{% if src and src.type == 'manual' and can('editor') %}
+<form class="card form" method="post" action="{{ url_for('admin.manual_add') }}">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <h2>Add manually</h2>
+  <label class="f">Paste a link, or the text<textarea name="text" required style="min-height:140px" placeholder="https://… or paste the post, press release or article text here"></textarea><span class="help">Paste just a link and the AI opens it and reads the article.</span></label>
+  <div class="three">
+    <label class="f">Link (optional, if you pasted text)<input type="url" name="url" placeholder="https://…"></label>
+    <label class="f">Where it's from<select name="trust"><option value="tip">Community post or tip (unverified)</option><option value="outlet">Another news outlet</option><option value="official">Official source</option></select></label>
+    <label class="f">Working title (optional)<input type="text" name="title"></label>
+  </div>
+  <div class="btns"><button class="btn dark" type="submit" name="quick" value="1" data-working="Writing… (about 30 seconds)">Write it</button><button class="btn" type="submit" data-working="Reading…">Add details first</button><span class="small muted">Write it gives you a finished draft; anything missing is listed beside it for you to fill in.</span></div>
+</form>
+{% endif %}
+
+<nav class="tabs" aria-label="Filter">
+  {% for k, label in [('new', 'New items')] %}<a href="?tab={{ k }}" class="{{ 'on' if tab == k }}" {% if tab == k %}aria-current="page"{% endif %}>{{ label }} ({{ counts[k] }})</a>{% endfor %}
+  {% for k, label, _ in tabs %}<a href="?tab={{ k }}" class="{{ 'on' if tab == k }}" {% if tab == k %}aria-current="page"{% endif %}>{{ label }} ({{ counts[k] }})</a>{% endfor %}
+  <a href="?tab=ignored" class="{{ 'on' if tab == 'ignored' }}" {% if tab == 'ignored' %}aria-current="page"{% endif %}>Ignored ({{ counts.ignored }})</a>
+  {% if counts.skipped %}<a href="?tab=skipped" class="{{ 'on' if tab == 'skipped' }}" {% if tab == 'skipped' %}aria-current="page"{% endif %}>Skipped by AI ({{ counts.skipped }})</a>{% endif %}
+</nav>
+
+{% if tab in ('new', 'ignored', 'skipped') %}
+  {% if items %}
+  <form method="post" action="{{ url_for('admin.items_action') }}" class="items-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="back" value="{{ request.full_path }}">
+    {% if can('editor') %}
+    <div class="bulk">
+      <label class="check"><input type="checkbox" data-check-all aria-label="Select all"> <span class="small">Select all</span></label>
+      <span class="small muted" data-selected-count>Tick items to act on several at once.</span>
+      <span style="flex:1"></span>
+      {% if tab == 'new' %}
+      <button class="btn dark small" type="submit" name="action" value="quick" data-needs-selection data-working="Writing…">Write one story from selected</button>
+      <button class="btn small" type="submit" name="action" value="develop" data-needs-selection>Add details first</button>
+      {% if src and src.type == 'wire' %}<button class="btn small" type="submit" name="action" value="wire" data-needs-selection>Publish selected as written</button>{% endif %}
+      <button class="btn small" type="submit" name="action" value="ignore" data-needs-selection>Ignore selected</button>
+      {% else %}
+      <button class="btn small" type="submit" name="action" value="restore" data-needs-selection>Move back to New items</button>
+      {% endif %}
+    </div>
+    {% if tab == 'new' and not ai_ready %}<div class="notice small" style="padding:10px 14px">{{ ai_problem }} You can still start developing a story and add your own details; the AI steps wait until it's back. Event listings and wire stories don't need AI.</div>{% endif %}
+    {% endif %}
+    <div class="card" style="padding:0">
+    {% for it in items %}
+      <div class="item">
+        {% if can('editor') %}<input type="checkbox" name="item" value="{{ it.id }}" aria-label="Select “{{ it.title }}”">{% endif %}
+        <div class="item-body">
+          <div class="item-meta">
+            <span class="pill {{ it.trust }}">{{ TRUST.get(it.trust, it.trust).split(' (')[0] }}</span>
+            {% if not src %}<span>{{ it.source_name }}</span> ·{% endif %}
+            <span>{{ it.fetched_at|ago }}</span>
+            {% if it.extra_d.event_start %}<span>· Event: {{ event_when({'event_start': it.extra_d.event_start, 'event_end': it.extra_d.event_end}) }}{% if it.extra_d.location %}, {{ it.extra_d.location }}{% endif %}</span>{% endif %}
+            {% if it.extra_d.from %}<span>· From {{ it.extra_d.from }}</span>{% endif %}
+          </div>
+          <div class="item-title">{% if it.url and it.url.startswith('http') %}<a href="{{ it.url }}" target="_blank" rel="noopener">{{ it.title or '(no title)' }}</a>{% else %}{{ it.title or '(no title)' }}{% endif %}</div>
+          {% if it.text %}<div class="item-snip">{{ it.text[:260] }}{{ '…' if it.text|length > 260 }}</div>{% endif %}
+          {% if it.skip_reason %}<div class="small muted">{{ it.skip_reason }}</div>{% endif %}
+        </div>
+        {% if can('editor') %}
+        <div class="item-actions">
+          {% if tab == 'new' %}
+            {% if it.source_type == 'calendar' %}
+            <button class="btn small dark" type="submit" formaction="{{ url_for('admin.items_action', one=it.id, action='develop') }}">Create event</button>
+            {% elif it.source_type == 'wire' %}
+            <button class="btn small dark" type="submit" formaction="{{ url_for('admin.items_action', one=it.id, action='wire') }}">Publish as written</button>
+            <button class="btn small" type="submit" formaction="{{ url_for('admin.items_action', one=it.id, action='develop') }}" title="Write your own local-angle story, crediting the wire">Develop local angle</button>
+            {% else %}
+            <button class="btn small dark" type="submit" formaction="{{ url_for('admin.items_action', one=it.id, action='quick') }}" data-working="Writing… (about 30 seconds)" title="One click: a finished draft. Anything missing is listed beside it for you to fill in.">Write it</button>
+            <button class="btn small" type="submit" formaction="{{ url_for('admin.items_action', one=it.id, action='develop') }}" data-working="Reading… (about 20 seconds)" title="Add your own details or answers before it writes">Add details first</button>
+            {% endif %}
+            <button class="btn small" type="submit" formaction="{{ url_for('admin.items_action', one=it.id, action='ignore') }}">Ignore</button>
+          {% else %}
+            <button class="btn small" type="submit" formaction="{{ url_for('admin.items_action', one=it.id, action='restore') }}">Bring back</button>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+    </div>
+    {% if tab == 'new' %}<p class="small muted">Collecting is free. <b>Write it</b> gives you a finished draft; if something's missing, type it in beside the draft and it updates. <b>Add details first</b> if you already know more than the source says. Either costs a few cents. Event listings and wire stories are free.</p>{% endif %}
+  </form>
+  {% else %}
+  <p class="empty">{{ 'No new items. They appear here as sources are checked.' if tab == 'new' else 'Nothing here.' }}</p>
+  {% endif %}
+{% else %}
+  {% for d in rows %}
+  {% if d.status == 'developing' %}
+  <article class="card draft">
+    <div class="body">
+      <div class="btns"><span class="pill pending">In development</span>{% if d.member_id %}<span class="pill member">From a member</span>{% endif %}<span class="small muted">{% if not src %}{{ d.source_name or '' }} · {% endif %}updated {{ d.updated_at|ago }}</span></div>
+      <a class="title" href="{{ url_for('admin.develop', sid=d.id) }}">{{ d.headline }}</a>
+      {% set answered = d.dev.questions|selectattr('a')|list|length %}
+      <span class="small muted">{{ d.dev.sources|length }} source{{ 's' if d.dev.sources|length != 1 }} · {{ answered }} of {{ d.dev.questions|length }} questions answered</span>
+    </div>
+    <div class="actions"><a class="btn dark" href="{{ url_for('admin.develop', sid=d.id) }}">Continue</a></div>
+  </article>
+  {% else %}
+  <article class="card draft">
+    <a class="thumb {{ 'img' if d.image }}" href="{{ url_for('admin.story', sid=d.id) }}" aria-hidden="true" tabindex="-1">
+      {% if d.image %}<img src="{{ url_for('admin.private_upload', name=d.image) }}" alt="">{% else %}<span class="c">{{ d.category|upper }}</span><span class="h">{{ d.headline }}</span>{% endif %}
+    </a>
+    <div class="body">
+      <div class="btns"><span class="pill {{ d.confidence }}">{{ d.confidence|title }} confidence</span>
+        {% if d.featured %}<span class="pill ok">Featured</span>{% endif %}{% if d.member_id %}<span class="pill member">Member</span>{% endif %}{% if d.wire %}<span class="pill">Wire</span>{% endif %}
+        {% if d.kind == 'event' %}<span class="pill">Event · {{ event_when(d) }}</span>{% endif %}
+        {% if d.breaking %}<span class="pill bad">Breaking</span>{% endif %}
+        <span class="small muted">{% if not src %}{{ d.source_name or 'Deleted source' }} · {% endif %}{% if d.status == 'scheduled' %}publishes {{ d.publish_at|localdate }}{% elif d.status == 'published' %}published {{ d.published_at|ago }}{% else %}written {{ d.created_at|ago }}{% endif %}</span></div>
+      <a class="title" href="{{ url_for('admin.story', sid=d.id) }}">{{ d.headline }}</a>
+      <span class="small" style="color:var(--ink2)">{{ d.summary }}</span>
+      {% set open = d.checklist|rejectattr('checked')|list|length %}
+      {% if d.status == 'draft' %}<span class="small" style="font-weight:500;color:{{ '#7A5200' if open else '#1E6B3E' }}">{{ (open ~ ' item' ~ ('s' if open != 1 else '') ~ ' to verify before approving') if open else 'Nothing to verify' }}</span>{% endif %}
+      {% if d.status == 'rejected' and d.reject_reason %}<span class="small muted">Reason: {{ d.reject_reason }}</span>{% endif %}
+    </div>
+    <div class="actions"><a class="btn dark" href="{{ url_for('admin.story', sid=d.id) }}">{{ 'Review' if d.status == 'draft' else 'Open' }}</a>
+      {% if d.status == 'published' %}<a class="btn" href="{{ url_for('public.article', slug=d.slug) }}" target="_blank" rel="noopener">View</a>{% endif %}</div>
+  </article>
+  {% endif %}
+  {% else %}<p class="empty">{{ 'No drafts. Pick items to develop on the New items tab.' if tab == 'drafts' else ('Nothing in development. Stories you save part-way appear here.' if tab == 'developing' else 'Nothing here.') }}</p>{% endfor %}
+{% endif %}
+{% endblock %}

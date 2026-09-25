@@ -1,0 +1,71 @@
+{% extends "admin/base.html" %}
+{% block title %}Set up{% endblock %}
+{% block auth %}{{ self.body() }}{% endblock %}
+{% block main %}{{ self.body() }}{% endblock %}
+{% block body %}
+<div class="auth">
+<form class="card" method="post" enctype="multipart/form-data" action="{{ url_for('admin.setup', step=step) }}">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div>
+    <div style="font-size:13px;font-weight:600;color:#B3261E">Welcome</div>
+    <h1 style="font-family:var(--serif);font-size:30px">Set up your newsroom</h1>
+    <p class="muted" style="margin:6px 0 0">Four quick steps. Everything here can be changed later in Settings.</p>
+  </div>
+  <ol class="steps" aria-label="Setup steps">
+    {% for label in ["1. Owner account", "2. Publication and town", "3. AI writer", "4. First sources"] %}
+    <li class="{{ 'on' if loop.index == step else ('done' if loop.index < step) }}" {% if loop.index == step %}aria-current="step"{% endif %}>{{ label }}</li>
+    {% endfor %}
+  </ol>
+  {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+
+  {% if step == 1 %}
+  <h2>Your owner account</h2>
+  {% if code_required %}
+  <label class="f">Setup code<input type="text" name="setup_code" required autocomplete="off"><span class="help">The code you chose in the install script. It stops anyone else from claiming your site.</span></label>
+  {% endif %}
+  <div class="two">
+    <label class="f">Your name<input type="text" name="name" required autocomplete="name"></label>
+    <label class="f">Email<input type="email" name="email" required autocomplete="email"></label>
+  </div>
+  <div class="two">
+    <label class="f">Password<input type="password" name="password" required minlength="10" autocomplete="new-password"><span class="help">At least 10 characters.</span></label>
+    <label class="f">Password again<input type="password" name="password2" required minlength="10" autocomplete="new-password"></label>
+  </div>
+
+  {% elif step == 2 %}
+  <h2>Publication and town</h2>
+  <label class="f">Publication name<input type="text" name="site_name" required value="{{ S.site_name if S.site_name != 'My Local News' else '' }}" placeholder="Riverton Daily"></label>
+  <div class="two">
+    <label class="f">Main town<input type="text" name="town" required value="{{ S.town if S.town != 'Riverton' else '' }}"></label>
+    <label class="f">County<input type="text" name="county" value="{{ S.county }}"><span class="help">Used for weather alerts.</span></label>
+  </div>
+  <div class="two">
+    <label class="f">State<select name="state">{% for v, l in settings_.FIELDS.state.options %}<option value="{{ v }}" {{ 'selected' if S.state == v }}>{{ l }}</option>{% endfor %}</select></label>
+    <label class="f">Time zone<select name="timezone">{% for v, l in settings_.TIMEZONES %}<option value="{{ v }}" {{ 'selected' if S.timezone == v }}>{{ l }}</option>{% endfor %}</select></label>
+  </div>
+  <label class="f">Logo (optional)<input type="file" name="logo" accept="image/png,image/jpeg"><span class="help">A letter mark is used until you add one.</span></label>
+
+  {% elif step == 3 %}
+  <h2>Connect the AI writer</h2>
+  <p class="muted" style="margin:0">Paste your Claude API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>. It's stored encrypted. You can skip this and add it later; nothing is drafted until you do.</p>
+  <label class="f">API key<input type="password" name="ai_key" autocomplete="off" placeholder="{{ 'Saved. Paste a new one to replace it' if ai_set else 'sk-ant-…' }}"></label>
+  <label class="f">Monthly spending cap (USD)<input type="number" name="ai_cap" min="0" step="1" value="{{ S.ai_cap }}"><span class="help">Drafting pauses for the month when this is reached.</span></label>
+
+  {% else %}
+  <h2>Add your first sources</h2>
+  <p class="muted" style="margin:0">Most towns have these. Tick the ones yours has and paste the feed or calendar address. You can skip any, and add more at any time.</p>
+  {% for key, label, typ, cat in starters %}
+  <div class="card" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+    <label class="check"><input type="checkbox" name="use_{{ key }}" {{ 'checked' if typ == 'weather' }}> <span><b>{{ label }}</b><br><span class="small muted">{% if typ == 'weather' %}Official National Weather Service alerts for {{ S.county or 'your county' }}{% if S.state %}, {{ S.state }}{% endif %}. Nothing to paste.{% elif typ == 'calendar' %}Paste the calendar's .ics link{% else %}Paste the news feed (RSS) link{% endif %}</span></span></label>
+    {% if typ != 'weather' %}<input type="url" name="url_{{ key }}" aria-label="{{ label }} address" placeholder="https://…">{% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <div class="btns" style="justify-content:space-between">
+    {% if step > 2 %}<a class="btn" href="{{ url_for('admin.setup', step=step - 1) }}">Back</a>{% else %}<span></span>{% endif %}
+    <button class="btn dark" type="submit">{{ 'Open my newsroom' if step == 4 else 'Continue' }}</button>
+  </div>
+</form>
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% macro picture(s, big=False) -%}
+<div class="pic">{% if s.image %}<img src="{{ media_url(s.image) }}" alt="{{ s.image_alt or '' }}" loading="{{ 'eager' if big else 'lazy' }}">{% endif %}</div>
+{%- endmacro %}
+
+{% macro tipform(form_token, compact=False, f=None, error=None) -%}
+<form method="post" action="{{ url_for('public.tip') }}" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:14px">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="ft" value="{{ form_token }}">
+  <div class="hp" aria-hidden="true"><label>Leave this empty<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+  {% if error %}<div class="err" role="alert">{{ error }}</div>{% endif %}
+  <label class="f">What happened?<textarea name="text" required minlength="10" maxlength="5000">{{ f.text if f else '' }}</textarea></label>
+  <div class="row">
+    <label class="f grow">Where?<input type="text" name="location" maxlength="300" value="{{ f.location if f else '' }}"></label>
+    {% if S.tips_photos %}<label class="f grow">Photos (optional, up to {{ S.tips_max_photos }})<input type="file" name="photos" accept="image/jpeg,image/png" multiple></label>{% endif %}
+  </div>
+  {% if S.tips_photos %}<label class="check small-check"><input type="checkbox" name="photo_ok" {{ 'checked' if f and f.photo_ok }}> <span>If I attach photos: I took them or have permission to share them, and the newsroom may publish them.</span></label>{% endif %}
+  {% if member %}
+  <fieldset class="credit"><legend>If we publish a story from this</legend>
+    <label class="check"><input type="radio" name="credit" value="1" {{ 'checked' if not f or f.credit != '0' }}> Credit me as @{{ member.username }} (and give me the points)</label>
+    <label class="check"><input type="radio" name="credit" value="0" {{ 'checked' if f and f.credit == '0' }}> Don't show my name (you still get the points)</label>
+  </fieldset>
+  <p class="meta" style="margin:0">Sending as <b>@{{ member.username }}</b>. It'll show in <a href="{{ url_for('members.me') }}" style="text-decoration:underline">My submissions</a>.</p>
+  {% elif not compact %}
+  <label class="check"><input type="checkbox" name="anonymous" id="anon" {{ 'checked' if f and f.anonymous }}> Keep me anonymous</label>
+  <div class="row">
+    <label class="f grow">Your name (optional)<input type="text" name="name" maxlength="120" autocomplete="name" value="{{ f.name if f else '' }}"></label>
+    <label class="f grow">Email or phone (optional)<input type="text" name="contact" maxlength="200" autocomplete="email" value="{{ f.contact if f else '' }}"></label>
+  </div>
+  <p class="meta" style="margin:0">Only our editors see your name and contact details, so we can follow up. Photo location data is removed when you upload. If you tick anonymous, we don't keep your name or contact. <a href="{{ url_for('members.join') }}" style="text-decoration:underline">Join free</a> to get credit and points for your tips.</p>
+  {% endif %}
+  <div><button class="btn solid" type="submit">Send tip</button></div>
+</form>
+{%- endmacro %}
+
+
+{% macro vote(target, id, count, voted, big=False) -%}
+<form method="post" action="{{ url_for('members.vote') }}" class="vote {{ 'big' if big }}" data-vote>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="target" value="{{ target }}"><input type="hidden" name="id" value="{{ id }}">
+  <button type="submit" class="{{ 'on' if voted }}" aria-pressed="{{ 'true' if voted else 'false' }}" aria-label="Upvote" {% if not member %}formaction="{{ url_for('members.login', next=request.path) }}" formmethod="get"{% endif %}>▲</button>
+  <span data-count>{{ count }}</span>
+</form>
+{%- endmacro %}
+
+{% macro flagform(target, id) -%}
+<details class="flag"><summary>Flag</summary>
+<form method="post" action="{{ url_for('members.flag') }}">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="target" value="{{ target }}"><input type="hidden" name="id" value="{{ id }}">
+  <select name="reason" aria-label="Reason">{% for k, l in [('facts','Wrong facts'),('offensive','Offensive'),('spam','Spam'),('other','Other')] %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select>
+  <input type="text" name="note" placeholder="What's wrong? (optional)" maxlength="500">
+  <button class="btn" type="submit">Send flag</button>
+</form></details>
+{%- endmacro %}
+
+{% macro badges_inline(mid) -%}{% for b in badge_list(mid) %}<span class="bdg" title="{{ b.name }}{{ (' ' ~ b.tier_name) if b.tier_name }}: {{ ('a secret badge') if b.secret else b.description }}">{{ b.icon }}</span>{% endfor %}{%- endmacro %}
+
+{% macro crown_tag(mid) -%}{% set cs = crowns_for(mid) %}{% if cs %}<span class="crown" title="{{ cs|map(attribute='label')|join(' · ') }}">👑 {{ cs[0].label }}{% if cs|length > 1 %} +{{ cs|length - 1 }}{% endif %}</span>{% endif %}{%- endmacro %}
+
+{% macro who(username, staff=False, mid=None) -%}<a class="who" href="{{ url_for('members.profile', username=username) }}">@{{ username }}</a>{% if staff %}<span class="staff">Staff</span>{% endif %}{% if mid %}{{ crown_tag(mid) }}{{ badges_inline(mid) }}{% endif %}{%- endmacro %}

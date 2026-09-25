@@ -1,0 +1,42 @@
+{% extends "admin/base.html" %}
+{% set active = 'content' %}
+{% block title %}All content{% endblock %}
+{% block main %}
+{% set qs = request.args.to_dict() %}
+<div class="head"><div><h1>All content</h1><div class="sub">Every story and event, wherever it came from. Filter, search, and open anything to edit it.</div></div>
+{% set man = nav.builtins|selectattr('type', 'equalto', 'manual')|first %}{% if man %}<a class="btn dark" href="{{ url_for('admin.queue', sid=man.id) }}">Add something</a>{% endif %}</div>
+
+<form method="get" class="card filters">
+  <input type="hidden" name="status" value="{{ f.status }}"><input type="hidden" name="sort" value="{{ f.sort }}">
+  <label class="f wide">Search<input type="search" name="q" value="{{ f.q }}" placeholder="Words in the headline or story"></label>
+  <label class="f">Section<select name="cat"><option value="">All sections</option>{% for c in categories %}<option {{ 'selected' if f.cat == c }}>{{ c }}</option>{% endfor %}</select></label>
+  {% set all_subs = [] %}{% for c, xs in subcats.items() %}{% for x in xs %}{% set _ = all_subs.append((c, x)) %}{% endfor %}{% endfor %}
+  {% if all_subs %}<label class="f">Subcategory<select name="sub"><option value="">Any</option>{% for c, x in all_subs %}<option value="{{ x }}" {{ 'selected' if f.sub == x }}>{{ c }} · {{ x }}</option>{% endfor %}</select></label>{% endif %}
+  <label class="f">Came from<select name="origin">{% for k, l in origins %}<option value="{{ k }}" {{ 'selected' if f.origin == k }}>{{ l }}</option>{% endfor %}</select></label>
+  <label class="f">Author<input type="text" name="author" value="{{ f.author }}" placeholder="@username, byline or partner"></label>
+  <label class="f">Type<select name="kind"><option value="">Stories and events</option><option value="story" {{ 'selected' if f.kind == 'story' }}>Stories</option><option value="event" {{ 'selected' if f.kind == 'event' }}>Events</option></select></label>
+  <label class="f">From<input type="date" name="from" value="{{ f['from'] }}"></label>
+  <label class="f">To<input type="date" name="to" value="{{ f.to }}"></label>
+  <div class="btns" style="align-self:end"><button class="btn dark">Filter</button>{% if filtered %}<a class="btn link" href="{{ url_for('admin.content', status=f.status or none) }}">Clear</a>{% endif %}</div>
+</form>
+
+<nav class="tabs">{% for k, l in statuses %}<a href="{{ url_for('admin.content', **dict(qs, status=k, page=1)) }}" class="{{ 'on' if f.status == k }}">{{ l }} ({{ counts.get(k, 0) }})</a>{% endfor %}</nav>
+<div class="btns small"><span class="muted">Sort</span>{% for k, v in sorts.items() %}<a class="btn small {{ 'dark' if f.sort == k }}" href="{{ url_for('admin.content', **dict(qs, sort=k, page=1)) }}">{{ v[0] }}</a>{% endfor %}</div>
+
+<div class="card" style="padding:0;overflow:auto">
+<table class="list">
+<thead><tr><th>Headline</th><th>Status</th><th class="hide-sm">Section</th><th class="hide-sm">Came from</th><th class="hide-sm">Date</th></tr></thead>
+<tbody>
+{% for r in rows %}
+<tr>
+  <td><a href="{{ url_for('admin.develop', sid=r.id) if r.status == 'developing' else url_for('admin.story', sid=r.id) }}"><b>{{ r.headline }}</b></a>{% if r.featured %} <span class="pill ok">Featured</span>{% endif %}{% if r.kind == 'event' %} <span class="pill">Event</span>{% endif %}
+    {% if r.status == 'published' and (r.upvotes or r.comment_count) %}<br><span class="small muted">▲ {{ r.upvotes }} · {{ r.comment_count }} comment{{ 's' if r.comment_count != 1 }}</span>{% endif %}</td>
+  <td><span class="pill {{ {'published':'ok','draft':'pending','developing':'pending','scheduled':'member','rejected':'bad'}.get(r.status, '') }}">{{ dict(statuses).get(r.status, r.status) }}</span></td>
+  <td class="hide-sm small">{{ r.category }}{% if r.subcategory %} · {{ r.subcategory }}{% endif %}</td>
+  <td class="hide-sm small">{{ r.origin }}</td>
+  <td class="hide-sm small">{% if r.status == 'published' %}{{ r.published_at|localdate(false) }}{% elif r.status == 'scheduled' %}for {{ r.publish_at|localdate }}{% else %}changed {{ r.updated_at|ago }}{% endif %}</td>
+</tr>
+{% else %}<tr><td colspan="5" class="empty">Nothing matches.{% if filtered %} Try fewer filters.{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+{% if page > 1 or has_more %}<div class="btns">{% if page > 1 %}<a class="btn" href="{{ url_for('admin.content', **dict(qs, page=page - 1)) }}">← Newer</a>{% endif %}{% if has_more %}<a class="btn" href="{{ url_for('admin.content', **dict(qs, page=page + 1)) }}">More →</a>{% endif %}</div>{% endif %}
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "admin/base.html" %}
+{% set active = 'partners' %}
+{% block title %}Community partners{% endblock %}
+{% block main %}
+<div class="head"><div><h1>Community partners</h1><div class="sub">Local organizations that share their news here, for free. Approving gives them a Community Partner badge, and everything they share ends with an author box: their logo, a few words about them and a link to their website.</div></div>
+<a class="btn" href="{{ url_for('members.partners') }}" target="_blank" rel="noopener">Public partners page ↗</a></div>
+{% macro card(o, pending) %}
+<section class="card" style="display:flex;gap:16px;align-items:flex-start">
+  {% if o.logo %}<img src="{{ url_for('admin.private_upload', name=o.logo) }}" alt="" style="width:72px;height:72px;object-fit:contain;border-radius:8px;border:1px solid var(--line)">{% endif %}
+  <form method="post" class="grow form" style="gap:8px;flex:1" enctype="multipart/form-data">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ o.id }}">
+    {% if pending %}<b style="font-size:17px">{{ o.name }}</b><span class="small muted">{{ o.category }} · from @{{ o.username }} · {{ o.created_at|ago }}</span>
+    {% if o.description %}<p style="margin:0">{{ o.description }}</p>{% endif %}
+    {% else %}<div class="two"><input type="text" name="name" value="{{ o.name }}" aria-label="Name"><select name="category" aria-label="Category">{% for c in categories %}<option {{ 'selected' if c == o.category }}>{{ c }}</option>{% endfor %}</select></div>
+    {% if o.needs_look %}<div class="notice small" style="margin:0">@{{ o.username }} changed their author box {{ o.updated_at|ago }}. Have a look, then click “Looks good”.</div>{% endif %}
+    <textarea name="description" aria-label="About them (shown in their author box)" rows="2" style="min-height:50px">{{ o.description }}</textarea>
+    <div class="two"><input type="text" name="address" value="{{ o.address }}" placeholder="Address" aria-label="Address"><input type="text" name="website" value="{{ o.website }}" placeholder="https://website" aria-label="Website"></div>
+    <input type="text" name="calendar_url" value="{{ o.calendar_url }}" placeholder="Calendar link (.ics)" aria-label="Calendar link">
+    <div class="btns small"><label class="small">New logo <input type="file" name="logo" accept="image/jpeg,image/png"></label>{% if o.logo %}<label class="check small"><input type="checkbox" name="remove_logo"> Remove logo</label>{% endif %}</div>
+    <span class="small muted">Managed by @{{ o.username }}{% if o.contact %} · Contact (private): {{ o.contact }}{% endif %}</span>{% endif %}
+    {% if pending %}<span class="small">{% if o.website %}<a href="{{ o.website }}" target="_blank" rel="noopener nofollow">{{ o.website }}</a> · {% endif %}{{ o.address }}{% if o.contact %} · {{ o.contact }}{% endif %}</span>
+    {% if o.calendar_url %}<span class="small">Calendar: {{ o.calendar_url }}</span>{% endif %}{% endif %}
+    <div class="btns">
+    {% if pending %}<button class="btn go small" name="action" value="approve">Approve</button><button class="btn small" name="action" value="decline">Decline</button>
+    {% else %}{% if o.needs_look %}<button class="btn go small" name="action" value="looked">Looks good</button>{% endif %}<button class="btn small" name="action" value="edit">Save</button><button class="btn small danger" name="action" value="remove" data-confirm="Remove {{ o.name }} as a partner?">Remove</button>{% endif %}
+    {% if o.calendar_url %}<button class="btn small" name="action" value="calendar">Add their calendar as a source</button>{% endif %}</div>
+  </form>
+</section>
+{% endmacro %}
+<h2>Waiting ({{ pending|length }})</h2>
+{% for o in pending %}{{ card(o, true) }}{% else %}<p class="small muted">No applications waiting.</p>{% endfor %}
+{% if specials %}<h2>Specials coming up ({{ specials|length }})</h2>
+<div class="card">{% for sp in specials %}<div class="row"><span><b>{{ sp.title }}</b>{% if sp.price %} · {{ sp.price }}{% endif %} <span class="small muted">{{ sp.partner }} · {{ sp.day }}</span></span>
+  <form method="post" class="btns"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ sp.org_id }}"><input type="hidden" name="special_id" value="{{ sp.id }}"><button class="btn small" name="action" value="remove_special" data-confirm="Remove this special?">Remove</button></form></div>{% endfor %}</div>{% endif %}
+<h2>Partners ({{ approved|length }})</h2>
+{% for o in approved %}{{ card(o, false) }}{% else %}<p class="small muted">No partners yet. Share your site's “Become a community partner” page with churches, funeral homes, schools and clubs.</p>{% endfor %}
+{% endblock %}

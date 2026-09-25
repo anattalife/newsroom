@@ -1,0 +1,23 @@
+{% extends "public/base.html" %}
+{% set tab = 'me' %}
+{% block title %}My profile · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap"><div class="page narrow">
+  <p><a href="{{ url_for('members.me') }}" class="meta" style="text-decoration:underline">← My submissions</a></p>
+  <h1>My profile</h1>
+  <form method="post" enctype="multipart/form-data" class="stack">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    {% if error %}<div class="err" role="alert">{{ error }}</div>{% endif %}
+    <p class="meta">Username: <b>@{{ member.username }}</b> · Email: {{ member.email }}</p>
+    <label class="f">Your name<input type="text" name="display_name" maxlength="60" value="{{ member.display_name }}"></label>
+    <label class="f">Town<input type="text" name="town" maxlength="80" value="{{ member.town }}"></label>
+    <label class="f">About you<textarea name="bio" maxlength="600">{{ member.bio }}</textarea></label>
+    <div class="f"><span>Photo</span>{% if member.photo %}<img src="{{ media_url(member.photo) }}" alt="Your photo" style="width:80px;height:80px;border-radius:50%;object-fit:cover"><label class="check"><input type="checkbox" name="remove_photo"> Remove</label>{% endif %}
+      <input type="file" name="photo" accept="image/jpeg,image/png"></div>
+    <fieldset class="credit"><legend>Change password (optional)</legend>
+      <label class="f">Current password<input type="password" name="current_password" autocomplete="current-password"></label>
+      <label class="f">New password<input type="password" name="new_password" minlength="10" autocomplete="new-password"></label></fieldset>
+    <div><button class="btn solid" type="submit">Save</button></div>
+  </form>
+</div></div>
+{% endblock %}

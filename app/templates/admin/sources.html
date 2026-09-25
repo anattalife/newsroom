@@ -1,0 +1,86 @@
+{% extends "admin/base.html" %}
+{% set active = 'sources' %}
+{% block title %}Sources{% endblock %}
+{% block main %}
+<div class="head">
+  <div><h1>{{ current.label if current else ('Unsorted sources' if fid == 0 else 'Sources') }}</h1>
+    <div class="sub">{{ rows|length }} of {{ total }} sources{% if q %} matching “{{ q }}”{% endif %} · Put them in folders to keep things tidy. Folders show up in the sidebar with what's waiting in each.</div></div>
+  <div class="btns">{% if fid is not none %}<a class="btn" href="{{ url_for('admin.queue', fid=fid) }}">What's waiting in this folder</a>{% endif %}
+  {% if can('editor') %}<a class="btn dark" href="{{ url_for('admin.source_edit', folder=fid if fid else none) }}">Add source</a>{% endif %}</div>
+</div>
+
+<div class="srcgrid">
+<aside class="card" aria-label="Folders">
+  <h2 style="margin:0 0 8px">Folders</h2>
+  <div class="ftree">
+    <div class="fr {{ 'on' if fid is none }}"><a href="{{ url_for('admin.sources_list') }}"><b>All sources</b></a><span class="small muted" style="margin-left:auto">{{ total }}</span></div>
+    {% for fo in tree %}
+    <div class="fr {{ 'on' if fid == fo.id }}" style="padding-left:{{ 4 + fo.depth * 18 }}px">
+      <a href="{{ url_for('admin.sources_list', folder=fo.id) }}">📁 {{ fo.name }}</a><span class="small muted" style="margin-left:auto">{{ fo.n }}</span>
+    </div>
+    {% endfor %}
+    <div class="fr {{ 'on' if fid == 0 }}"><a href="{{ url_for('admin.sources_list', folder=0) }}" class="muted">Unsorted</a><span class="small muted" style="margin-left:auto">{{ unsorted }}</span></div>
+  </div>
+  {% if can('editor') %}
+  <form method="post" action="{{ url_for('admin.sources_organize') }}" class="form" style="margin-top:14px;gap:10px">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label class="f">New folder<input type="text" name="name" maxlength="80" placeholder="e.g. Government" required></label>
+    <label class="f">Inside<select name="parent_id"><option value="">(top level)</option>{% for fo in tree %}<option value="{{ fo.id }}" {{ 'selected' if fid == fo.id }}>{{ fo.label }}</option>{% endfor %}</select></label>
+    <button class="btn small" name="action" value="new_folder">Make folder</button>
+  </form>
+  {% endif %}
+</aside>
+
+<div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+  {% if current and can('editor') %}
+  <details class="card"><summary><b>Folder settings</b> <span class="small muted">rename, move or remove “{{ current.name }}”</span></summary>
+    <div class="form" style="margin-top:12px">
+      <form method="post" action="{{ url_for('admin.sources_organize') }}" class="btns"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ current.id }}">
+        <input type="text" name="name" value="{{ current.name }}" maxlength="80" style="width:260px" aria-label="Folder name"><button class="btn small" name="action" value="rename_folder">Rename</button></form>
+      <form method="post" action="{{ url_for('admin.sources_organize') }}" class="btns"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ current.id }}">
+        <select name="parent_id" style="width:260px" aria-label="Move inside"><option value="">(top level)</option>{% for fo in tree if fo.id != current.id %}<option value="{{ fo.id }}" {{ 'selected' if current.parent_id == fo.id }}>{{ fo.label }}</option>{% endfor %}</select><button class="btn small" name="action" value="move_folder">Move folder</button></form>
+      <form method="post" action="{{ url_for('admin.sources_organize') }}" class="btns"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ current.id }}">
+        <button class="btn small" name="action" value="delete_folder" data-confirm="Remove this folder? Its sources and subfolders move up one level; nothing is deleted.">Remove folder</button><span class="small muted">Sources inside aren't deleted; they move up a level.</span></form>
+    </div>
+  </details>
+  {% endif %}
+
+  <form class="btns" method="get">{% if fid is not none %}<input type="hidden" name="folder" value="{{ fid }}">{% endif %}
+    <input type="search" name="q" value="{{ q }}" placeholder="Search sources by name or web address" style="width:340px" aria-label="Search sources"><button class="btn">Search</button>{% if q %}<a class="btn link" href="?{{ 'folder=' ~ fid if fid is not none }}">Clear</a>{% endif %}</form>
+
+  <form method="post" action="{{ url_for('admin.sources_organize') }}" data-bulk>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {% if can('editor') %}
+  <div class="bulkbar card" style="padding:12px 16px">
+    <label class="check"><input type="checkbox" data-bulk-all aria-label="Select all"> <span class="small">All</span></label>
+    <span class="small muted" data-bulk-count>Tick sources to move or pause several at once.</span>
+    <span style="flex:1"></span>
+    <select name="to" aria-label="Move to folder"><option value="">Move to…</option><option value="0">Unsorted</option>{% for fo in tree %}<option value="{{ fo.id }}">{{ fo.label }}</option>{% endfor %}</select>
+    <button class="btn small dark" name="action" value="move" data-bulk-needs>Move to folder</button>
+    <button class="btn small" name="action" value="pause" data-bulk-needs>Pause</button>
+    <button class="btn small" name="action" value="resume" data-bulk-needs>Resume</button>
+  </div>
+  {% endif %}
+  <div class="card" style="padding:0;overflow:auto">
+  <table class="list">
+  <thead><tr>{% if can('editor') %}<th style="width:36px"><span class="sr">Select</span></th>{% endif %}<th>Source</th><th class="hide-sm">Folder</th><th class="hide-sm">Last new item</th><th>Status</th><th><span class="sr">Actions</span></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    {% if can('editor') %}<td>{% if not r.builtin %}<input type="checkbox" name="sid" value="{{ r.id }}" data-bulk-box aria-label="Select {{ r.name }}">{% endif %}</td>{% endif %}
+    <td><a href="{{ url_for('admin.queue', sid=r.id) }}" style="color:var(--ink);font-weight:500">{{ r.name }}</a><br><span class="small muted">{{ TYPES[r.type].label }} · {{ TRUST[r.trust].split(' (')[0] }} · {% if r.builtin %}Instant{% elif r.interval_min < 60 %}every {{ r.interval_min }} min{% else %}every {{ (r.interval_min / 60)|round(1)|replace('.0','') }} hr{% endif %}</span></td>
+    <td class="hide-sm">{% if r.builtin %}<span class="small muted">Built in</span>{% elif r.folder_label %}<a href="{{ url_for('admin.sources_list', folder=r.folder_id) }}" class="small">{{ r.folder_label }}</a>{% else %}<span class="small muted">Unsorted</span>{% endif %}</td>
+    <td class="hide-sm">{{ r.last_new_item|ago if r.last_new_item else '—' }}</td>
+    <td>{% if not r.enabled %}<span class="pill">Paused</span>{% elif r.last_error %}<span class="pill bad" title="{{ r.last_error }}">Problem</span>{% elif r.builtin %}<span class="pill ok">Built in</span>{% elif r.last_checked %}<span class="pill ok">Working</span>{% else %}<span class="pill">Waiting for first check</span>{% endif %}</td>
+    <td style="text-align:right;white-space:nowrap">{% if can('editor') and not r.builtin %}<a class="btn small" href="{{ url_for('admin.source_edit', sid=r.id) }}">Edit</a>{% endif %}</td>
+  </tr>
+  {% else %}<tr><td colspan="6" class="empty">{% if q %}No sources match that.{% elif fid is not none %}Nothing in this folder yet. Tick sources in <a href="{{ url_for('admin.sources_list') }}">All sources</a> and move them here.{% else %}No sources yet.{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+  </table>
+  </div>
+  </form>
+  <p class="small muted" style="margin:0">Web pages, meeting portals, PDFs and open data are planned for a later update.</p>
+</div>
+</div>
+{% endblock %}

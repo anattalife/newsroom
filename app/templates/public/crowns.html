@@ -1,0 +1,28 @@
+{% extends "public/base.html" %}
+{% set tab = 'leaderboard' %}
+{% block title %}Crowns · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap game" style="padding-top:28px;padding-bottom:56px;max-width:900px">
+  <div class="game-head"><div><h1>👑 Crowns</h1>
+    <p class="meta">One holder at a time. The crown shows next to their name everywhere on the site, until someone passes them.</p></div></div>
+  <nav class="pills game-nav"><a href="{{ url_for('members.leaderboard') }}">Leaderboards</a><a href="{{ url_for('members.crowns_page') }}" aria-current="page">👑 Crowns</a><a href="{{ url_for('members.badges') }}">Badge Book</a></nav>
+  <div class="how">
+    <div><b>#1 Fan of a team</b><span>Most points from that team's games this season ({{ season }}): scores, live updates, streams and videos.</span></div>
+    <div><b>Top Reporter of a section</b><span>Most points from stories and tips in that section in the last 90 days.</span></div>
+    <div><b>Oracle of the Week</b><span>Most Call It points in the last 7 days.</span></div>
+  </div>
+  {% if rows %}
+  <div class="crown-list">
+    {% for r in rows %}
+    <div class="crown-row {{ 'empty' if not r.member_id }}">
+      <span class="crown-ic" aria-hidden="true">👑</span>
+      <div><b>{{ r.label }}</b>
+        {% if r.member_id %}<span class="meta">worn since {{ r.since|ago }} · {{ r.score }} points{% if r.chaser %} · <b>@{{ r.chaser.username }}</b> is {{ r.chaser.gap }} point{{ 's' if r.chaser.gap != 1 }} away{% endif %}</span>
+        {% else %}<span class="meta">Up for grabs: {{ min_score }} points takes it.</span>{% endif %}</div>
+      {% if r.username %}<a class="holder" href="{{ url_for('members.profile', username=r.username) }}">@{{ r.username }}</a>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}<p class="empty">No crowns have been won yet. Post a score, go live from a game, or send a tip that becomes a story, and the first one could be yours.</p>{% endif %}
+</div>
+{% endblock %}

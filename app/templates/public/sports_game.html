@@ -1,0 +1,95 @@
+{% extends "public/base.html" %}
+{% set cat_name = 'Sports' %}
+{% block title %}{{ 'LIVE: ' if gm.live == 'live' }}{{ gm.matchup }} · {{ S.site_name }}{% endblock %}
+{% block content %}
+{% set last_id = feed[0].id if feed else 0 %}
+<div class="wrap sports" style="padding-top:28px;padding-bottom:48px;max-width:820px"
+     {% if gm.live == 'live' %}data-live-feed="{{ url_for('sports.game_feed', gid=gm.id) }}" data-after="{{ last_id }}"{% endif %}>
+  <p><a href="{{ url_for('sports.team_page', slug=gm.team_slug) }}" class="meta" style="text-decoration:underline">← {{ gm.team }}</a></p>
+
+  <div class="bigscore {{ 'is-live' if gm.live == 'live' }}">
+    <span class="meta">{% if gm.live == 'live' %}<b class="livepill">● LIVE</b> {% endif %}{{ gm.team }} · {{ gm.day_label }}{% if not (gm.has_score and gm.time_tbd) %} · {{ gm.time_label }}{% endif %}{% if gm.location %} · {{ gm.location }}{% endif %}</span>
+    <div class="bs-row {{ 'win' if gm.result == 'W' }}"><span><i style="background:{{ gm.color }}"></i>{{ gm.name }}</span><b data-our>{{ gm.our_score if gm.our_score is not none else '' }}</b></div>
+    <div class="bs-row {{ 'win' if gm.result == 'L' }}"><span><i></i>{{ 'at ' if gm.home == 'away' }}{{ gm.opponent }}</span><b data-their>{{ gm.their_score if gm.their_score is not none else '' }}</b></div>
+    <span class="bs-s"><b class="tag {{ 'live' if gm.status == 'live' else ('final' if gm.status == 'final' else ('off' if gm.status in ('postponed','cancelled') else '')) }}" data-status>{{ gm.status_label }}{% if gm.detail %} · {{ gm.detail }}{% endif %}</b>
+      {% if gm.note %}<span class="meta"> · {{ gm.note }}</span>{% endif %}</span>
+    {% if gm.reporter %}<span class="meta">Score from <a href="{{ url_for('members.profile', username=gm.reporter) }}" style="text-decoration:underline">@{{ gm.reporter }}</a> · {{ gm.reported_at|ago }}{% if confirms %} · confirmed by {{ confirms|length }} {{ 'person' if confirms|length == 1 else 'people' }}{% endif %}</span>{% endif %}
+  </div>
+  {% if error %}<div class="err" role="alert">{{ error }}</div>{% endif %}
+  {% if callit %}{% from "public/_callit.html" import callit_box with context %}{{ callit_box(callit, gm) }}{% endif %}
+
+  {# ── video: live streams first, then other videos ── #}
+  <section id="video" aria-label="Video">
+    {% for v in videos %}
+    <figure class="game-video">
+      <figcaption>{% if v.kind == 'stream' %}<b class="livepill">● Live stream</b>{% else %}<b>Video</b>{% endif %}{% if v.username %} <span class="meta">shared by <a href="{{ url_for('members.profile', username=v.username) }}">@{{ v.username }}</a></span>{% endif %}</figcaption>
+      <div class="video-embed {{ 'tall' if v.embed.tall }}"><iframe src="{{ v.embed.src }}" title="{{ 'Live stream' if v.kind == 'stream' else 'Video' }}: {{ gm.matchup }}" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+    </figure>
+    {% endfor %}
+    {% if gm.live != 'over' and not has_stream %}
+    <div class="stream-cta">
+      <div><b>📹 Going to the game? Stream it!</b>
+        <span>Go live on Facebook or YouTube from your phone, then paste the link here. Everyone who can't make it gets to watch, and you earn <b>{{ pts_stream }} points</b>.</span></div>
+    </div>
+    {% endif %}
+    {% if member %}
+    <details class="box" {{ 'open' if gm.live == 'live' and not has_stream }}><summary><b>{{ 'Share your live stream or a video' if gm.live != 'over' else 'Share a video of this game' }}</b> <span class="meta">{{ pts_stream if gm.live != 'over' and not has_stream else pts_video }} points</span></summary>
+      <form method="post" class="stack" style="margin-top:12px">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <label class="f">Link to the video<input type="text" name="url" required placeholder="https://www.facebook.com/…/videos/…  or  https://youtube.com/live/…"></label>
+        <fieldset class="kinds"><legend class="sr">What is it?</legend>
+          <label class="check"><input type="radio" name="kind" value="stream" {{ 'checked' if gm.live != 'over' }}> A live stream of the game</label>
+          <label class="check"><input type="radio" name="kind" value="video" {{ 'checked' if gm.live == 'over' }}> Highlights or a recorded video</label></fieldset>
+        <div><button class="btn brand" name="action" value="video">Share it</button></div>
+        <p class="meta" style="margin:0">Tip: on Facebook, tap <b>Live</b>, then after you go live tap <b>Share → Copy link</b>. On YouTube, use <b>Create → Go live</b>, then <b>Share</b>.</p>
+      </form></details>
+    {% elif gm.live != 'over' %}<p class="meta"><a href="{{ url_for('members.join') }}" style="text-decoration:underline">Join free</a> or <a href="{{ url_for('members.login', next=request.path) }}" style="text-decoration:underline">log in</a> to share your stream.</p>{% endif %}
+  </section>
+
+  {# ── the game feed ── #}
+  <section id="feed" aria-labelledby="feed-h">
+    <h2 class="h-sec" id="feed-h">{{ 'Live from the game' if gm.live == 'live' else 'Game feed' }}</h2>
+    {% if gm.live == 'live' %}
+      {% if member %}
+      <form method="post" class="feed-post">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <label class="sr" for="fb">What's happening?</label>
+        <textarea id="fb" name="body" maxlength="280" rows="2" placeholder="What's happening? “Hornets recover a fumble at the 30!”"></textarea>
+        <div class="fp-row"><span class="meta">Score now (optional)</span>
+          <input type="number" name="our_score" min="0" max="999" inputmode="numeric" aria-label="{{ gm.us }} score" value="{{ gm.our_score if gm.our_score is not none }}">
+          <span>–</span>
+          <input type="number" name="their_score" min="0" max="999" inputmode="numeric" aria-label="{{ gm.opponent }} score" value="{{ gm.their_score if gm.their_score is not none }}">
+          <button class="btn brand" name="action" value="update">Post</button></div>
+      </form>
+      {% else %}<div class="box"><b>At the game?</b><span>Post updates as it happens and earn points. <a href="{{ url_for('members.join') }}" style="text-decoration:underline">Join free</a> or <a href="{{ url_for('members.login', next=request.path) }}" style="text-decoration:underline">log in</a>.</span></div>{% endif %}
+    {% elif gm.live == 'upcoming' %}
+      <p class="meta">The game feed opens 30 minutes before the start. Fans at the game post what's happening, live.</p>
+    {% endif %}
+    <ol class="feed" data-feed>
+      {% for u in feed %}<li><span class="meta"><b>@{{ u.username or 'member' }}</b> · {{ u.created_at|ago }}</span>{% if u.our_score is not none %}<b class="fscore">{{ u.our_score }}–{{ u.their_score }}</b>{% endif %}<span>{{ u.body }}</span></li>{% endfor %}
+    </ol>
+    {% if not feed and gm.live == 'over' %}<p class="meta">No one posted updates during this game.</p>{% endif %}
+  </section>
+
+  {# ── the score ── #}
+  {% if gm.locked %}<p class="meta">The newsroom has checked this score.</p>
+  {% elif not member %}{% if gm.live != 'live' %}<div class="box"><b>Know the score?</b><span>Any member can post it, and it shows up right away. <a href="{{ url_for('members.join') }}" style="text-decoration:underline">Join free</a> or <a href="{{ url_for('members.login', next=request.path) }}" style="text-decoration:underline">log in</a>.</span></div>{% endif %}
+  {% else %}
+    {% if gm.has_score and gm.reported_by != member.id and not mine %}
+    <form method="post" class="inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn" name="action" value="confirm">✓ That score's right</button></form>
+    {% endif %}
+    <details class="box" {{ 'open' if not gm.has_score and gm.live == 'over' and gm.status == 'scheduled' }}><summary><b>{{ 'Post the final score' if gm.live == 'live' else ('Fix the score' if gm.has_score else 'Post the score') }}</b></summary>
+      <form method="post" class="stack" style="margin-top:12px">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <div class="prow"><label class="f grow">{{ gm.name }}<input type="number" name="our_score" min="0" max="999" inputmode="numeric" value="{{ gm.our_score if gm.our_score is not none }}"></label>
+          <label class="f grow">{{ gm.opponent }}<input type="number" name="their_score" min="0" max="999" inputmode="numeric" value="{{ gm.their_score if gm.their_score is not none }}"></label></div>
+        <div class="prow"><label class="f grow">Game is<select name="status">{% for k, l in statuses.items() %}<option value="{{ k }}" {{ 'selected' if (gm.status == k and gm.live != 'live') or (k == 'final' and (gm.status == 'scheduled' or gm.live == 'live')) }}>{{ l }}</option>{% endfor %}</select></label>
+          <label class="f grow">Extra (optional)<input type="text" name="detail" maxlength="40" placeholder="OT, 3rd quarter, 2 sets to 1" value="{{ gm.detail or '' }}"></label></div>
+        <div><button class="btn brand" name="action" value="report">Post it</button> <span class="meta">Shows up right away, with your name on it. A final score ends the live feed.</span></div>
+      </form></details>
+  {% endif %}
+
+  {% if log %}<section><h2 class="h-sec">Score history</h2>
+    {% for l in log %}<div class="li"><span class="meta">{{ l.created_at|ago }}{% if l.username %} · @{{ l.username }}{% elif l.user_id %} · newsroom{% endif %}</span><span>{{ l.change }}</span></div>{% endfor %}</section>{% endif %}
+</div>
+{% endblock %}

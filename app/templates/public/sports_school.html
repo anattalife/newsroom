@@ -1,0 +1,23 @@
+{% extends "public/base.html" %}
+{% from "public/_sports.html" import game_card with context %}
+{% set cat_name = 'Sports' %}
+{% block title %}{{ s.name }} sports · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap sports" style="padding-top:28px;padding-bottom:48px">
+  <p><a href="{{ url_for('sports.scoreboard') }}" class="meta" style="text-decoration:underline">← All scores</a></p>
+  <div class="school-hero" style="--c:{{ s.color }}"><i>{{ (s.short or s.name)[:1] }}</i>
+    <div><h1>{{ s.name }}</h1><span class="meta">{{ s.mascot ~ ' · ' if s.mascot }}{{ s.level }}{{ ' · ' ~ s.town if s.town }}</span></div>
+    <a class="btn" href="{{ url_for('sports.add_schedule', school_id=s.id) }}">Add a schedule</a></div>
+
+  <section><h2 class="h-sec">Teams</h2>
+  {% if teams %}{% for lvl, group in groups %}<h3 class="lvl">{{ lvl }}</h3><div class="teams">{% for t in group %}<a href="{{ url_for('sports.team_page', slug=t.slug) }}"><b>{{ t.label }}</b><span class="meta">{{ t.record if t.record != '0-0' else 'No results yet' }}</span></a>{% endfor %}</div>{% endfor %}
+  {% else %}<p class="empty">No teams yet. <a href="{{ url_for('sports.add_schedule', school_id=s.id) }}" style="text-decoration:underline">Paste a schedule</a> and the teams are made for you.</p>{% endif %}</section>
+
+  {% if coming %}<section><h2 class="h-sec">Coming up this week</h2><div class="games">{% for gm in coming %}{{ game_card(gm) }}{% endfor %}</div></section>{% endif %}
+  {% if recent %}<section><h2 class="h-sec">Recent results</h2><div class="games">{% for gm in recent %}{{ game_card(gm) }}{% endfor %}</div></section>{% endif %}
+
+
+  {% if stories %}<section><h2 class="h-sec">In the news</h2>
+    {% for st in stories %}<a class="li" href="{{ url_for('public.article', slug=st.slug) }}"><span class="meta">{{ st.published_at|ago }}</span><b>{{ st.headline }}</b></a>{% endfor %}</section>{% endif %}
+</div>
+{% endblock %}

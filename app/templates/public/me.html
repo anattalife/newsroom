@@ -1,0 +1,46 @@
+{% extends "public/base.html" %}
+{% set tab = 'me' %}
+{% block title %}My submissions · {{ S.site_name }}{% endblock %}
+{% set LABEL = {'draft':'Draft','waiting':'Waiting for the newsroom','sent_back':'Sent back to you','published':'Published','declined':'Not running','developing':'The newsroom is working on it','withdrawn':'Withdrawn'} %}
+{% block content %}
+<div class="wrap"><div class="page wide">
+  <div class="list-head"><h1>My submissions</h1>
+    <span class="row"><a class="btn brand" href="{{ url_for('members.submit_choose') }}">New submission</a><a class="btn" href="{{ url_for('members.my_profile') }}">My profile</a>
+    <form method="post" action="{{ url_for('members.logout') }}" class="inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn" type="submit">Log out</button></form></span></div>
+  <div class="stats"><div><b>{{ member.points }}</b><span>points</span></div><div><b>{{ badges|length }}</b><span>badges</span></div><div><b>{{ subs|selectattr('status','equalto','published')|list|length + tips|selectattr('story_status','equalto','published')|list|length }}</b><span>published</span></div>
+    <div><a href="{{ url_for('members.profile', username=member.username) }}" style="text-decoration:underline">View my public profile</a></div></div>
+  {% if notices %}
+  <section class="box" style="margin-bottom:20px"><h2 class="h-sec">Updates</h2>
+    {% for n in notices %}<div class="notice-item k-{{ n.kind }} {{ 'unseen' if not n.seen }}">{% if n.link %}<a href="{{ n.link }}">{{ n.text }}</a>{% else %}{{ n.text }}{% endif %} <span class="meta">{{ n.created_at|ago }}</span></div>{% endfor %}
+  </section>
+  {% endif %}
+  {% if subs %}
+  <h2 class="h-sec">Articles and facts</h2>
+  {% for s in subs %}
+  <div class="sub-row">
+    <div style="flex:1;min-width:0"><span class="meta">{{ 'You wrote it' if s.kind == 'article' else 'Just the facts' }} · {{ s.updated_at|ago }}</span>
+      <b>{{ s.headline or '(no headline)' }}</b>
+      <span class="status {{ s.status }}">{{ LABEL[s.status] }}</span>
+      {% if s.note and s.status in ('sent_back', 'declined') %}<span class="meta note">Note from the newsroom: {{ s.note }}</span>{% endif %}</div>
+    <div class="row">
+      {% if s.status in ('draft', 'waiting', 'sent_back') %}<a class="btn" href="{{ url_for('members.submit_form', sub_id=s.id) }}">{{ 'Edit and resend' if s.status == 'sent_back' else 'Edit' }}</a>
+      <form method="post" action="{{ url_for('members.submit_withdraw', sub_id=s.id) }}" class="inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="linkbtn" data-confirm="Withdraw this?">Withdraw</button></form>{% endif %}
+      {% if s.story and s.story.status == 'published' %}<a class="btn solid" href="{{ url_for('public.article', slug=s.story.slug) }}">Read it</a>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+  {% if tips %}
+  <h2 class="h-sec" style="margin-top:24px">Tips</h2>
+  {% for t in tips %}
+  <div class="sub-row"><div style="flex:1;min-width:0"><span class="meta">Tip · {{ t.created_at|ago }}</span><b>{{ t.text[:120] }}{{ '…' if t.text|length > 120 }}</b>
+    <span class="status {{ 'published' if t.story_status == 'published' else ('waiting' if t.status == 'new' else ('developing' if t.status == 'used' else 'declined')) }}">{{ 'Published' if t.story_status == 'published' else ('Waiting for the newsroom' if t.status == 'new' else ('The newsroom is working on it' if t.status == 'used' else 'Not running')) }}</span></div>
+    {% if t.status == 'new' and not t.anonymous %}<form method="post" action="{{ url_for('members.tip_credit', tid=t.id) }}" class="inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="linkbtn">{{ 'Credit: “Tip from @' ~ member.username ~ '” (change)' if t.credit else 'Credit: not named (change)' }}</button></form>{% endif %}
+    {% if t.story_status == 'published' %}<a class="btn solid" href="{{ url_for('public.article', slug=t.slug) }}">Read it</a>{% endif %}</div>
+  {% endfor %}
+  {% endif %}
+  {% if not subs and not tips %}<p class="empty">Nothing yet. <a href="{{ url_for('members.submit_choose') }}" style="text-decoration:underline">Send your first story or tip</a>.</p>{% endif %}
+  {% if orgs %}<h2 class="h-sec" style="margin-top:24px">My organizations</h2>
+  {% for o in orgs %}<div class="sub-row"><b style="flex:1">{{ o.name }}</b><span class="status {{ 'published' if o.status == 'approved' else ('waiting' if o.status == 'pending' else 'declined') }}">{{ {'approved':'Community partner','pending':'Waiting for approval','declined':'Not approved'}[o.status] }}</span>{% if o.status == 'approved' %}<a class="btn" href="{{ url_for('members.partner_manage', oid=o.id) }}">Author box &amp; specials</a>{% endif %}</div>{% endfor %}{% endif %}
+</div></div>
+{% endblock %}

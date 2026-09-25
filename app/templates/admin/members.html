@@ -1,0 +1,23 @@
+{% extends "admin/base.html" %}
+{% set active = 'members' %}
+{% block title %}Members{% endblock %}
+{% block main %}
+<div class="head"><div><h1>Members</h1><div class="sub">People with an account on your public site. They can't see the dashboard.</div></div>
+<form class="btns" method="get"><input type="text" name="q" value="{{ q }}" placeholder="Search username or email" style="width:240px"><input type="hidden" name="show" value="{{ show }}"><button class="btn">Search</button></form></div>
+<nav class="tabs">{% for k, l in [('all','Everyone'),('suggested','Suggested for trusted (' ~ suggest_at ~ '+ points)'),('trusted','Trusted'),('restricted','Held, suspended or banned')] %}<a href="?show={{ k }}&q={{ q }}" class="{{ 'on' if show == k }}">{{ l }}</a>{% endfor %}</nav>
+<div class="kv" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+  <div><span class="small muted">Work points, all members</span><b>{{ totals.work }}</b><span class="small muted">Submissions, comments, scores</span></div>
+  <div><span class="small muted">Social points, all members</span><b>{{ totals.social }}</b><span class="small muted">Upvotes and replies received</span></div>
+</div>
+<div class="btns small"><span class="muted">Sort by</span>{% for k, l in [('new','Newest'),('points','Total points'),('work','Work'),('social','Social')] %}<a class="btn small {{ 'dark' if sort == k }}" href="?show={{ show }}&q={{ q }}&sort={{ k }}">{{ l }}</a>{% endfor %}</div>
+<div class="card" style="padding:0;overflow:auto">
+<table class="list">
+<thead><tr><th>Member</th><th class="hide-sm">Joined</th><th>Points</th><th class="hide-sm" title="Submissions, comments, scores">Work</th><th class="hide-sm" title="Upvotes and replies received">Social</th><th class="hide-sm">Published</th><th>Status</th></tr></thead>
+<tbody>
+{% for r in rows %}
+<tr><td><a href="{{ url_for('admin.member', mid=r.id) }}"><b>@{{ r.username }}</b></a>{% if r.staff_user_id %} <span class="badge">🛡️ Staff</span>{% endif %}<br><span class="small muted">{{ r.email }}</span></td>
+<td class="hide-sm small">{{ r.created_at|localdate(false) }}</td><td>{{ r.points }}</td><td class="hide-sm">{{ r.work_points }}</td><td class="hide-sm">{{ r.social_points }}</td><td class="hide-sm">{{ r.pub }}</td>
+<td>{% if r.trusted %}<span class="pill ok">Trusted</span> {% endif %}{% if r.status != 'active' %}<span class="pill bad">{{ r.status|title }}</span>{% elif not r.trusted and r.points >= suggest_at %}<span class="pill warn">Suggested for trusted</span>{% endif %}</td></tr>
+{% else %}<tr><td colspan="5" class="empty">No members yet. Anyone can join from the public site.</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

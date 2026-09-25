@@ -1,0 +1,27 @@
+{% extends "public/base.html" %}
+{% set tab = 'leaderboard' %}
+{% from "public/_macros.html" import badges_inline, crown_tag with context %}
+{% block title %}Leaderboard · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap game" style="padding-top:28px;padding-bottom:56px">
+  <div class="game-head"><div><h1>Leaderboards</h1><p class="meta">{{ blurb }}</p></div></div>
+  <nav class="pills game-nav"><a href="{{ url_for('members.leaderboard') }}" aria-current="page">Leaderboards</a><a href="{{ url_for('members.crowns_page') }}">👑 Crowns{% if crown_count %} ({{ crown_count }}){% endif %}</a><a href="{{ url_for('members.badges') }}">Badge Book</a></nav>
+  <div class="lb-grid">
+    <div>
+      <nav class="pills" aria-label="Which leaderboard">{% for k, l in boards %}<a href="?board={{ k }}" {% if board == k %}aria-current="page"{% endif %}>{{ l }}</a>{% endfor %}</nav>
+      <ol class="board" style="margin-top:14px">
+      {% for r in rows %}{% set lv = level_of(r.points) %}
+        <li class="{{ 'top3' if loop.index <= 3 }}"><span class="rank">{% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}</span>
+          <span class="lb-who"><a href="{{ url_for('members.profile', username=r.username) }}"><b>@{{ r.username }}</b></a>{% if r.staff_user_id %}<span class="staff">Staff</span>{% endif %}{{ crown_tag(r.id) }}{{ badges_inline(r.id) }}<span class="lvl">{{ lv.name }}</span></span>
+          <span class="pts-big">{{ r.period }}</span></li>
+      {% else %}<p class="empty">No points here yet. <a href="{{ url_for('members.submit_choose') }}" style="text-decoration:underline">Be the first</a>.</p>{% endfor %}
+      </ol>
+    </div>
+    <aside class="buzz" aria-label="Latest moments">
+      <h2 class="h-sec">Latest moments</h2>
+      {% for s in shouts %}<div class="buzz-row k-{{ s.kind }}"><span>{{ s.text }}</span><span class="meta">{{ s.created_at|ago }}{% if s.link %} · <a href="{{ s.link }}">See</a>{% endif %}</span></div>
+      {% else %}<p class="meta">Crowns taken, secret badges found and Call It winners show up here.</p>{% endfor %}
+    </aside>
+  </div>
+</div>
+{% endblock %}

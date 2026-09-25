@@ -1,0 +1,18 @@
+{% extends "admin/base.html" %}
+{% block title %}Log in{% endblock %}
+{% block auth %}
+<div class="auth">
+<form class="card" method="post" style="max-width:420px">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <h1 style="font-family:var(--serif)">{{ S.site_name }}</h1>
+  <p class="muted" style="margin:-12px 0 0">Newsroom login</p>
+  {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+  <label class="f">Email<input type="email" name="email" required autocomplete="username" autofocus></label>
+  <label class="f">Password<input type="password" name="password" required autocomplete="current-password"></label>
+  <label class="check"><input type="checkbox" name="remember" checked> Keep me logged in on this device</label>
+  <button class="btn dark" type="submit">Log in</button>
+  <p class="small muted" style="margin:0">Forgot your password? Ask the owner to reset it under Settings → People.</p>
+</form>
+</div>
+{% endblock %}
+{% block main %}<p>You're logged in. <a href="{{ url_for('admin.overview') }}">Go to the newsroom</a>.</p>{% endblock %}

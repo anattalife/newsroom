@@ -1,0 +1,48 @@
+{% extends "admin/base.html" %}
+{% set active = 'settings' %}
+{% block title %}Settings{% endblock %}
+{% block main %}
+<h1>Settings</h1>
+<div class="cols setwrap">
+  {% include "admin/_setnav.html" %}
+  <form class="card form grow" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div><h2 style="font-size:20px">{{ sec.title }}</h2>{% if sec.intro %}<p class="muted" style="margin:4px 0 0">{{ sec.intro }}</p>{% endif %}</div>
+    {% if section == 'writing' %}
+    <details class="notice"><summary style="cursor:pointer"><b>The locked rules</b> (always on, can't be edited)</summary>
+      <pre style="white-space:pre-wrap;font:13px/1.5 var(--sans);margin:10px 0 0">{{ locked }}</pre></details>
+    {% endif %}
+    {% if section == 'ai' %}<div class="rules"><span>This month so far: ${{ '%.2f'|format(spend) }}</span><span>{{ 'API key saved' if values.ai_key else 'No API key yet' }}</span></div>{% endif %}
+    {% for f in sec.fields %}
+      {% set v = values[f.key] %}
+      {% if f.type == 'toggle' %}
+      <label class="check"><input type="checkbox" name="{{ f.key }}" {{ 'checked' if v }}> <span><b>{{ f.label }}</b>{% if f.help %}<br><span class="small muted">{{ f.help }}</span>{% endif %}</span></label>
+      {% elif f.type == 'chips' %}
+      <div class="f"><span>{{ f.label }}</span>
+        <div class="chips" data-name="{{ f.key }}">{% for c in v %}<span class="chip">{{ c }}<input type="hidden" name="{{ f.key }}" value="{{ c }}"><button type="button" aria-label="Remove {{ c }}">×</button></span>{% endfor %}<input type="text" aria-label="Add to {{ f.label }}" placeholder="Add…"></div>
+        <span class="help">{{ f.help }} Press Enter after each.</span></div>
+      {% elif f.type == 'select' %}
+      <label class="f">{{ f.label }}<select name="{{ f.key }}">{% for o in f.options %}{% set ov = o[0] if o is not string else o %}<option value="{{ ov }}" {{ 'selected' if v == ov }}>{{ o[1] if o is not string else o }}</option>{% endfor %}</select>{% if f.help %}<span class="help">{{ f.help }}</span>{% endif %}</label>
+      {% elif f.type in ('textarea', 'markdown') %}
+      <label class="f">{{ f.label }}<textarea name="{{ f.key }}" {% if f.type == 'markdown' %}style="min-height:140px"{% elif f.rows %}rows="{{ f.rows }}" style="min-height:{{ f.rows * 24 + 20 }}px"{% endif %}>{{ v }}</textarea><span class="help">{{ f.help }}{% if f.type == 'markdown' %} Plain text; blank lines make new paragraphs, and **bold** and [links](https://…) work.{% endif %}</span></label>
+      {% elif f.type == 'secret' %}
+      <label class="f">{{ f.label }}<input type="password" name="{{ f.key }}" autocomplete="off" placeholder="{{ 'Saved. Leave blank to keep it' if v else '' }}"><span class="help">{{ f.help }}</span></label>
+      {% if v %}<label class="check small"><input type="checkbox" name="{{ f.key }}__remove"> Remove the saved {{ f.label|lower }}</label>{% endif %}
+      {% elif f.type == 'image' %}
+      <div class="f"><span>{{ f.label }}</span>
+        {% if v %}<img src="{{ media_url(v) }}" alt="Current {{ f.label|lower }}" style="width:96px;height:96px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff">
+        <label class="check small"><input type="checkbox" name="{{ f.key }}__remove"> Remove</label>{% endif %}
+        <input type="file" name="{{ f.key }}" accept="image/png,image/jpeg"><span class="help">{{ f.help }}</span></div>
+      {% elif f.type == 'color' %}
+      <label class="f">{{ f.label }}<input type="color" name="{{ f.key }}" value="{{ v }}" style="width:80px;height:44px;padding:4px;border:1px solid var(--field);border-radius:8px"></label>
+      {% else %}
+      <label class="f">{{ f.label }}<input type="{{ 'number' if f.type == 'number' else ('email' if f.type == 'email' else ('url' if f.type == 'url' else 'text')) }}" {% if f.type == 'number' %}step="any" min="0"{% endif %} name="{{ f.key }}" value="{{ v }}">{% if f.help %}<span class="help">{{ f.help }}</span>{% endif %}</label>
+      {% endif %}
+    {% endfor %}
+    <div class="btns" style="justify-content:space-between;border-top:1px solid var(--line2);padding-top:14px">
+      <span>{% if section == 'system' %}<button class="btn" type="submit" formaction="{{ url_for('admin.test_email') }}" formnovalidate>Send a test email</button>{% endif %}</span>
+      <span class="btns"><a class="btn" href="">Discard changes</a><button class="btn dark" type="submit">Save</button></span>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends "public/base.html" %}
+{% from "public/_macros.html" import picture, vote, flagform, who with context %}
+{% block title %}{{ s.headline }} · {{ S.site_name }}{% endblock %}
+{% block description %}{{ s.summary }}{% endblock %}
+{% block og %}
+<meta property="og:site_name" content="{{ S.site_name }}"><meta property="og:type" content="article">
+<meta property="og:title" content="{{ s.headline }}"><meta property="og:description" content="{{ s.summary }}">
+<meta property="og:url" content="{{ request.url }}">{% if s.image %}<meta property="og:image" content="{{ request.host_url.rstrip('/') }}{{ media_url(s.image) }}">{% endif %}
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="{{ request.url }}">
+{% endblock %}
+{% block content %}
+<div class="wrap article">
+  <main>
+    <a class="kicker" href="{{ category_url(s.category) }}">{{ s.category }}</a>{% if s.subcategory %}<span class="kicker"> · </span><a class="kicker" href="{{ category_url(s.category, s.subcategory) }}">{{ s.subcategory }}</a>{% endif %}
+    <h1>{{ s.headline }}</h1>
+    {% if s.summary %}<p class="dek" style="font-size:21px">{{ s.summary }}</p>{% endif %}
+    {% if s.kind == 'event' %}
+    <div class="box" style="gap:4px"><b>{{ event_when(s) }}</b>{% if s.event_location %}<span>{{ s.event_location }}</span>{% endif %}</div>
+    {% endif %}
+    <div class="byline"><span>{% set by = byline_html(s) %}{% if by %}{{ by }} · {% endif %}{{ s.published_at|localdate }}{% if org %} · <a href="{{ url_for('members.partners') }}" class="partner-tag">{{ org.name }}, a community partner</a>{% endif %}</span>
+      {{ vote('story', s.id, s.upvotes, voted, big=True) }}</div>
+    {% set ve = video_embed(s.video) %}
+    {% if ve %}<div class="video-embed {{ 'tall' if ve.tall }}"><iframe src="{{ ve.src }}" title="Video: {{ s.headline }}" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+    {% elif s.image %}{{ picture(s, big=True) }}{% if s.photo_credit %}<span class="meta photo-credit">{{ s.photo_credit }}</span>{% endif %}{% endif %}
+    <div class="story-body">{{ s.body|safe }}</div>
+    {% set tipper = tip_credit(s) %}
+    {% if tipper %}<p class="meta tipline">Tip from <a href="{{ url_for('members.profile', username=tipper) }}"><b>@{{ tipper }}</b></a>. Thank you! <a href="{{ url_for('members.submit_choose') }}">Send us yours</a>.</p>{% endif %}
+    {% if s.edited_note and s.credit == 'byline' %}<p class="meta"><i>{{ S.edited_note_text }}</i></p>{% endif %}
+    {% if callit %}{% from "public/_callit.html" import callit_box with context %}{{ callit_box(callit) }}{% endif %}
+    {% if org %}{% from "public/_authorbox.html" import authorbox with context %}{{ authorbox(org, org_more) }}{% endif %}
+    {% for c in s.corrections %}<div class="correction"><b>{{ S.correction_label }}, {{ c.at|localdate(false) }}:</b> {{ c.text }}</div>{% endfor %}
+    {% if s.public_cites %}
+    <section class="cites" aria-label="Sources"><b>Sources</b>
+      {% for c in s.public_cites %}<a href="{{ c.url }}" rel="nofollow noopener" target="_blank">{{ c.title or c.name }}</a>{% endfor %}
+    </section>
+    {% endif %}
+    {% if s.kind == 'story' and not s.wire and not (s.member_id and s.credit == 'byline' and not s.dev) %}<p class="disclosure">{{ S.ai_disclosure }} <a href="{{ url_for('public.page', name='ai') }}">How we use AI</a> · <a href="{{ url_for('public.page', name='corrections') }}">Report a correction</a></p>{% endif %}
+    {% if member %}<div class="story-tools">{{ flagform('story', s.id) }}</div>{% endif %}
+
+    {% if comments_on %}
+    <section class="comments" id="comments" aria-labelledby="c-h">
+      <div class="c-head"><h2 id="c-h">{{ s.comment_count }} comment{{ 's' if s.comment_count != 1 }}</h2>
+        <nav class="c-sort">Sort: <a href="?sort=top#comments" {% if sort == 'top' %}aria-current="true"{% endif %}>Top</a> <a href="?sort=new#comments" {% if sort == 'new' %}aria-current="true"{% endif %}>Newest</a></nav></div>
+      {% if s.comments_mode == 'locked' %}<p class="meta">Comments are closed on this story.</p>
+      {% elif member %}
+      <form method="post" action="{{ url_for('members.comment') }}" class="c-form">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="story_id" value="{{ s.id }}">
+        <label class="sr" for="c-new">Add a comment</label>
+        <textarea id="c-new" name="body" required minlength="2" maxlength="5000" placeholder="Add to the conversation. Be kind, stick to facts."></textarea>
+        <div class="row" style="justify-content:space-between"><span class="meta">Commenting as <b>@{{ member.username }}</b></span><button class="btn solid" type="submit">Post comment</button></div>
+      </form>
+      {% else %}
+      <p class="c-join"><a class="btn solid" href="{{ url_for('members.login', next=request.path ~ '#comments') }}">Log in to comment</a> <a class="btn" href="{{ url_for('members.join', next=request.path ~ '#comments') }}">Join free</a></p>
+      {% endif %}
+      {% macro render(c) %}
+      <div class="c" id="c{{ c.id }}">
+        {% if c.status == 'deleted' %}<div class="c-body meta">[deleted]</div>
+        {% else %}
+        <div class="c-meta">{{ vote('comment', c.id, c.upvotes, c.voted) }}{{ who(c.username, c.staff_user_id, c.member_id) }}<span class="meta">{{ c.created_at|ago }}{% if c.edited_at %} · edited{% endif %}</span>
+          {% if c.status == 'held' %}<span class="pill-held">Waiting for a quick check</span>{% endif %}</div>
+        <div class="c-body">{{ c.body|plain(links=c.author_points >= (S.priv_links|int) or c.staff_user_id) }}</div>
+        {% if member and s.comments_mode == 'open' and c.status == 'visible' %}
+        <div class="c-actions">
+          <details class="reply"><summary>Reply</summary>
+            <form method="post" action="{{ url_for('members.comment') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="story_id" value="{{ s.id }}"><input type="hidden" name="parent_id" value="{{ c.id }}">
+            <textarea name="body" required minlength="2" maxlength="5000" aria-label="Reply to @{{ c.username }}"></textarea><button class="btn solid" type="submit">Reply</button></form></details>
+          {% if c.member_id == member.id %}
+          <details class="reply"><summary>Edit</summary>
+            <form method="post" action="{{ url_for('members.comment_edit', cid=c.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><textarea name="body" required aria-label="Edit comment">{{ c.body }}</textarea><button class="btn" type="submit">Save</button></form></details>
+          <form method="post" action="{{ url_for('members.comment_delete', cid=c.id) }}" class="inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="linkbtn" data-confirm="Delete your comment?">Delete</button></form>
+          {% else %}{{ flagform('comment', c.id) }}{% endif %}
+        </div>
+        {% endif %}
+        {% endif %}
+        {% if c.children %}<div class="c-kids">{% for k in c.children %}{{ render(k) }}{% endfor %}</div>{% endif %}
+      </div>
+      {% endmacro %}
+      {% for c in comments %}{{ render(c) }}{% else %}{% if s.comments_mode != 'locked' %}<p class="meta">No comments yet. Start the conversation.</p>{% endif %}{% endfor %}
+    </section>
+    {% endif %}
+  </main>
+  <aside class="rail">
+    {% if S.tips_enabled %}
+    <section class="tipbox" style="padding:22px">
+      <h2 style="font-size:20px">Know more about this?</h2>
+      <p style="margin:0;font-size:14px;color:var(--ink2)">Send us the facts or write it up yourself. Members earn points and badges.</p>
+      <span class="row"><a class="btn solid" href="{{ url_for('members.submit_choose') }}">Submit</a><a class="btn" href="{{ url_for('public.tip') }}">Quick tip</a></span>
+    </section>
+    {% endif %}
+    {% if related %}
+    <section><h2 class="h-sec">More {{ s.category }}</h2>
+      {% for r in related %}<a class="rel" href="{{ url_for('public.article', slug=r.slug) }}">{{ r.headline }}</a>{% endfor %}
+    </section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

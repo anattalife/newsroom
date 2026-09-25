@@ -1,0 +1,32 @@
+{% extends "public/base.html" %}
+{% block title %}Community partners · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="info-hero"><div class="wrap">
+  <h1>Community partners</h1>
+</div></div>
+<div class="wrap"><div class="page wide info">
+  <div class="prose partner-intro">{{ intro|safe }}</div>
+  {% if member %}<p><a class="btn brand" href="#apply">Apply now, free</a></p>{% endif %}
+  {% if rows %}
+  <h2 class="h-sec" style="margin-top:28px">Our partners</h2>
+  <div class="badge-grid" style="margin:12px 0 20px">{% for o in rows %}<div class="bcard">{% if o.logo %}<img src="{{ media_url(o.logo) }}" alt="" style="width:56px;height:56px;object-fit:contain">{% endif %}<b>{{ o.name }}</b><span class="meta">{{ o.category }}</span>{% if o.website %}<a class="meta" href="{{ o.website }}" rel="noopener nofollow" target="_blank" style="text-decoration:underline">Website</a>{% endif %}</div>{% endfor %}</div>
+  {% endif %}
+  <h2 style="font:700 24px var(--serif);margin-top:28px" id="apply">Become a community partner</h2>
+  {% if not member %}
+  <p class="prose">Partners are linked to a free member account. <a class="btn brand" href="{{ url_for('members.join', next=url_for('members.partners') ~ '#apply') }}">Join free</a> <a class="btn" href="{{ url_for('members.login', next=url_for('members.partners') ~ '#apply') }}">Log in</a></p>
+  {% else %}
+  <form method="post" enctype="multipart/form-data" class="stack" style="max-width:640px">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    {% if error %}<div class="err" role="alert">{{ error }}</div>{% endif %}
+    <label class="f">Organization name<input type="text" name="name" required maxlength="120" value="{{ f.name }}"></label>
+    <label class="f">Category you'd like to share news in<select name="category" required>{% for c in categories if c not in ('Weather', 'Events', 'National & World') %}<option {{ 'selected' if f.category == c }}>{{ c }}</option>{% endfor %}</select></label>
+    <label class="f">About your organization <span class="meta" style="font-weight:400">A sentence or two. It appears in the author box at the end of your stories.</span><textarea name="description" maxlength="300">{{ f.description }}</textarea></label>
+    <div class="row"><label class="f grow">Address<input type="text" name="address" value="{{ f.address }}"></label><label class="f grow">Website<input type="text" name="website" placeholder="https://" value="{{ f.website }}"></label></div>
+    <label class="f">How we can reach you (phone or email, private)<input type="text" name="contact" value="{{ f.contact }}"></label>
+    <label class="f">Events calendar link (optional)<input type="text" name="calendar_url" placeholder="An .ics or iCal link" value="{{ f.calendar_url }}"></label>
+    <label class="f">Logo (optional) <span class="meta" style="font-weight:400">Shown in your author box.</span><input type="file" name="logo" accept="image/jpeg,image/png"></label>
+    <div><button class="btn brand" type="submit">Apply</button></div>
+  </form>
+  {% endif %}
+</div></div>
+{% endblock %}

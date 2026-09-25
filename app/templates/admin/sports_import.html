@@ -1,0 +1,8 @@
+{% extends "admin/base.html" %}
+{% set active = 'sports' %}
+{% block title %}Paste a schedule{% endblock %}
+{% block main %}
+<div class="head"><div><h1>Paste a schedule</h1><div class="sub">Copy a schedule from anywhere (a school website, a PDF, a Facebook post) and paste it here. The AI lays it out as games for you to check before anything is added.</div></div>
+<a class="btn" href="{{ url_for('admin.sports_admin') }}">← Sports</a></div>
+<div class="card">{% include "_sports_paste.html" %}</div>
+{% endblock %}

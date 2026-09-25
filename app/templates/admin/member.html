@@ -1,0 +1,50 @@
+{% extends "admin/base.html" %}
+{% set active = 'members' %}
+{% block title %}@{{ m.username }}{% endblock %}
+{% block main %}
+<nav class="eyebrow"><a href="{{ url_for('admin.members') }}">Members</a></nav>
+<div class="head"><div><h1>@{{ m.username }}{% if m.display_name %} <span class="muted" style="font-weight:400">{{ m.display_name }}</span>{% endif %}</h1>
+<div class="sub">{{ m.email }} · joined {{ m.created_at|localdate(false) }}{% if m.last_seen %} · last seen {{ m.last_seen|ago }}{% endif %}{% if not m.confirmed %} · email not confirmed{% endif %}</div></div>
+<a class="btn" href="{{ url_for('members.profile', username=m.username) }}" target="_blank" rel="noopener">Public profile ↗</a></div>
+{% if temp %}<div class="flash">New temporary password: <b style="font-family:monospace">{{ temp }}</b>. Give it to them privately; they can change it under My profile.</div>{% endif %}
+<div class="kv">
+  <div><span class="small muted">Points</span><b>{{ m.points }}</b><span class="small muted">Work {{ m.work_points }} · Social {{ m.social_points }}</span></div>
+  <div><span class="small muted">Status</span><b>{{ m.status|title }}{% if m.status == 'suspended' and m.suspended_until %}<span class="small muted" style="display:block;font-weight:400">until {{ m.suspended_until|localdate }}</span>{% endif %}</b></div>
+  <div><span class="small muted">Trusted</span><b>{{ 'Yes' if m.trusted else 'No' }}</b>{% if not m.trusted and m.points >= suggest_at %}<span class="small" style="color:var(--amber)">Suggested</span>{% endif %}</div>
+  <div><span class="small muted">Badges</span><b>{{ badges|length }}</b></div>
+</div>
+<div class="cols">
+<div class="grow" style="display:flex;flex-direction:column;gap:16px">
+  <section class="card"><h2>Badges</h2>
+    <div class="btns" style="margin-top:10px">{% for b in badges %}<form method="post" class="inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="badge_id" value="{{ b.id }}"><span class="badge">{{ b.icon }} {{ b.name }} <button class="btn link small" name="action" value="unbadge" title="Remove" aria-label="Remove {{ b.name }}" style="padding:0 4px;min-height:0">×</button></span></form>{% else %}<span class="small muted">None yet.</span>{% endfor %}</div>
+    <form method="post" class="btns" style="margin-top:12px"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><select name="badge_id" style="width:auto">{% for b in all_badges %}<option value="{{ b.id }}">{{ b.icon }} {{ b.name }}</option>{% endfor %}</select><button class="btn small" name="action" value="badge">Award badge</button></form>
+  </section>
+  <section class="card"><h2>Submissions and tips</h2>
+    {% for s in subs %}<div class="row"><span><a href="{{ url_for('admin.submission', sub_id=s.id) }}">{{ s.headline or '(no headline)' }}</a><br><span class="m">{{ s.kind }} · {{ s.status }}</span></span></div>{% endfor %}
+    {% for t in tips %}<div class="row"><span><a href="{{ url_for('admin.tips', id=t.id, tab=t.status) }}">{{ t.text[:90] }}</a><br><span class="m">tip · {{ t.status }}</span></span></div>{% endfor %}
+    {% if not subs and not tips %}<p class="small muted">Nothing yet.</p>{% endif %}
+  </section>
+  <section class="card"><h2>Recent comments</h2>
+    {% for c in comments %}<div class="cmt"><span class="small muted">On <a href="{{ url_for('public.article', slug=c.slug) }}#c{{ c.id }}" target="_blank" rel="noopener">{{ c.headline }}</a> · {{ c.created_at|ago }} · {{ c.status }} · {{ c.upvotes }} upvotes</span>{{ c.body|plain }}</div>{% else %}<p class="small muted">No comments.</p>{% endfor %}
+  </section>
+  <section class="card"><h2>Points history</h2>
+    {% for p in points %}<div class="row"><span><span class="pill {{ 'ok' if p.kind == 'work' else 'member' }}">{{ p.kind|title }}</span> {{ p.reason|replace('_', ' ') }} <span class="m">{{ p.ref }}</span></span><span>{{ '+' if p.points >= 0 }}{{ p.points }} · <span class="m">{{ p.created_at|ago }}</span></span></div>{% else %}<p class="small muted">No points yet.</p>{% endfor %}
+  </section>
+</div>
+<aside class="card opts">
+  <h2>Actions</h2>
+  <form method="post" style="display:flex;flex-direction:column;gap:10px">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button class="btn {{ '' if m.trusted else 'go' }}" name="action" value="trusted">{{ 'Stop publishing without approval' if m.trusted else 'Can publish without approval' }}</button>
+    <span class="small muted">Trusted members' own articles go live straight away. You can still edit or unpublish.</span>
+    <label class="f">Note (for Warn, or your private note)<textarea name="note">{{ m.note }}</textarea></label>
+    <div class="btns"><button class="btn" name="action" value="warn" style="flex:1">Warn</button><button class="btn" name="action" value="note" style="flex:1">Save private note</button></div>
+    <button class="btn" name="action" value="hold">{{ 'Stop holding their comments' if m.status == 'held' else 'Hold all their comments for approval' }}</button>
+    <div class="btns"><input type="number" name="days" value="7" min="1" max="365" style="width:80px" aria-label="Days"><button class="btn" name="action" value="suspend" style="flex:1">Suspend for these days</button></div>
+    {% if m.status != 'active' %}<button class="btn" name="action" value="restore">Restore to active</button>{% endif %}
+    <button class="btn danger" name="action" value="ban" data-confirm="Ban @{{ m.username }}? Their comments are hidden and they can't log in.">Ban</button>
+    <div class="btns" style="border-top:1px solid var(--line2);padding-top:10px"><button class="btn small" name="action" value="reset" data-confirm="Make a new temporary password?">Reset password</button>{% if not m.confirmed %}<button class="btn small" name="action" value="confirm">Mark email confirmed</button>{% endif %}</div>
+  </form>
+</aside>
+</div>
+{% endblock %}

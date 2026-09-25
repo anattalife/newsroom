@@ -1,0 +1,17 @@
+{% extends "public/base.html" %}
+{% set tab = 'me' %}
+{% block title %}Log in · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap"><div class="page narrow">
+  <h1>Log in</h1>
+  <form method="post" class="stack">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    {% if error %}<div class="err" role="alert">{{ error }}</div>{% endif %}
+    <label class="f">Email or username<input type="text" name="email" required autocomplete="username"></label>
+    <label class="f">Password<input type="password" name="password" required autocomplete="current-password"></label>
+    <div><button class="btn solid" type="submit">Log in</button></div>
+    <p class="meta"><a href="{{ url_for('members.forgot') }}" style="text-decoration:underline">Forgot your password?</a> · New here? <a href="{{ url_for('members.join', next=request.args.get('next')) }}" style="text-decoration:underline">Join free</a></p>
+    <p class="meta">Work in the newsroom? <a href="{{ url_for('admin.login') }}" style="text-decoration:underline">Staff log in</a></p>
+  </form>
+</div></div>
+{% endblock %}

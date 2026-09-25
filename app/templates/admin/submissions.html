@@ -1,0 +1,20 @@
+{% extends "admin/base.html" %}
+{% set active = 'subs' %}
+{% block title %}From members{% endblock %}
+{% block main %}
+<div class="head"><div><div class="eyebrow">Approval page</div><h1>From members</h1>
+  <div class="sub">Articles members wrote themselves, and facts they sent for you to develop. Nothing uses AI unless you click Develop this story.</div></div>
+  <a class="btn" href="{{ url_for('admin.members') }}">Members</a></div>
+<nav class="tabs" aria-label="Filter">{% for k, l in tabs %}<a href="?tab={{ k }}" class="{{ 'on' if tab == k }}" {% if tab == k %}aria-current="page"{% endif %}>{{ l }} ({{ counts[k] }})</a>{% endfor %}</nav>
+{% for r in rows %}
+<article class="card draft">
+  <div class="body">
+    <div class="btns"><span class="pill member">{{ 'Wrote an article' if r.kind == 'article' else 'Just the facts' }}</span>
+      <span class="small muted">@{{ r.username }} · {{ r.points }} points{% if r.trusted %} · trusted{% endif %} · {{ (r.submitted_at or r.updated_at)|ago }}{% if not r.credit %} · asked not to be named{% endif %}</span></div>
+    <a class="title" href="{{ url_for('admin.submission', sub_id=r.id) }}">{{ r.headline or '(no headline)' }}</a>
+    {% if r.note and r.status in ('sent_back', 'declined') %}<span class="small muted">Your note: {{ r.note }}</span>{% endif %}
+  </div>
+  <div class="actions"><a class="btn dark" href="{{ url_for('admin.submission', sub_id=r.id) }}">{{ 'Review' if r.status == 'waiting' else 'Open' }}</a></div>
+</article>
+{% else %}<p class="empty">Nothing here.</p>{% endfor %}
+{% endblock %}

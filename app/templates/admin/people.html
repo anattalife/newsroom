@@ -1,0 +1,44 @@
+{% extends "admin/base.html" %}
+{% set active = 'settings' %}
+{% block title %}People{% endblock %}
+{% block main %}
+<h1>Settings</h1>
+<div class="cols setwrap">
+  {% include "admin/_setnav.html" %}
+  <div class="grow" style="display:flex;flex-direction:column;gap:16px">
+    {% if temp %}<div class="flash" role="status">Temporary password: <b style="font-family:monospace;font-size:16px">{{ temp }}</b><br>Give it to them privately. It won't be shown again. {% if S.smtp_host %}We also emailed it to them.{% endif %}</div>{% endif %}
+    <section class="card" style="padding:0;overflow:auto">
+      <table class="list">
+        <thead><tr><th>Name</th><th class="hide-sm">Email</th><th>Role</th><th class="hide-sm">Last login</th><th><span class="sr">Actions</span></th></tr></thead>
+        <tbody>
+        {% for u in users %}
+        <tr {% if not u.active %}style="color:var(--muted)"{% endif %}>
+          <td>{{ u.name }}{% if u.id == user.id %} <span class="pill">You</span>{% endif %}{% if not u.active %} <span class="pill">Deactivated</span>{% endif %}</td>
+          <td class="hide-sm">{{ u.email }}</td>
+          <td>{% if u.id == user.id %}{{ u.role|title }}{% else %}
+            <form method="post" class="btns" style="flex-wrap:nowrap"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ u.id }}"><input type="hidden" name="action" value="role">
+            <select name="role" aria-label="Role for {{ u.name }}" style="width:auto">{% for r in roles %}<option value="{{ r }}" {{ 'selected' if u.role == r }}>{{ r|title }}</option>{% endfor %}</select><button class="btn small" type="submit">Change</button></form>{% endif %}</td>
+          <td class="hide-sm">{{ u.last_login|ago if u.last_login else 'Never' }}</td>
+          <td style="text-align:right;white-space:nowrap">{% if u.id != user.id %}
+            <form method="post" style="display:inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ u.id }}">
+            <button class="btn small" type="submit" name="action" value="reset" data-confirm="Make a new temporary password for {{ u.name }}?">Reset password</button>
+            <button class="btn small" type="submit" name="action" value="toggle">{{ 'Deactivate' if u.active else 'Reactivate' }}</button></form>{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    <form class="card form" method="post">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="add">
+      <h2>Add a person</h2>
+      <div class="three">
+        <label class="f">Name<input type="text" name="name" required></label>
+        <label class="f">Email<input type="email" name="email" required></label>
+        <label class="f">Role<select name="role">{% for r in roles %}<option value="{{ r }}" {{ 'selected' if r == 'editor' }}>{{ r|title }}</option>{% endfor %}</select></label>
+      </div>
+      <ul class="small muted" style="margin:0;padding-left:18px">{% for r, d in roles.items() %}<li>{{ d }}</li>{% endfor %}</ul>
+      <div class="btns"><button class="btn dark" type="submit">Add person</button><span class="small muted">You'll get a temporary password to give them.</span></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

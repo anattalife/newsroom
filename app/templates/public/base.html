@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% block title %}{{ S.site_name }}{% endblock %}</title>
+<meta name="description" content="{% block description %}{{ S.site_description or S.tagline or S.site_name }}{% endblock %}">
+{% block og %}<meta property="og:site_name" content="{{ S.site_name }}"><meta property="og:type" content="website"><meta property="og:title" content="{{ S.site_name }}">{% endblock %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='public/site.css') }}?v={{ VERSION }}">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="alternate" type="application/rss+xml" title="{{ S.site_name }}" href="/feed.xml">
+<meta name="theme-color" content="{{ S.brand_color }}">
+<style>:root{--brand:{{ S.brand_color }}}</style>
+{% block extra_head %}{% endblock %}
+{% if S.plausible_domain %}<script defer data-domain="{{ S.plausible_domain }}" src="https://plausible.io/js/script.js"></script>{% endif %}
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+{% if weather_alert %}
+<div class="alert" role="alert"><div class="wrap"><strong style="letter-spacing:.04em">{{ weather_alert.event|upper }}</strong><span>{{ weather_alert.headline or '' }}</span><a href="{{ url_for('public.weather_page') }}">Details</a></div></div>
+{% endif %}
+{% if breaking %}
+<div class="alert" role="alert"><div class="wrap"><strong style="letter-spacing:.04em">BREAKING</strong><span>{{ breaking.headline }}</span><a href="{{ url_for('public.article', slug=breaking.slug) }}">Read more</a></div></div>
+{% endif %}
+<div class="install" role="region" aria-label="Install app"><span data-install-text>Get the {{ S.app_name or S.site_name }} app on your home screen.</span><span style="display:flex;gap:8px"><button class="btn solid" type="button" data-install>Install</button><button class="btn" type="button" data-install-close aria-label="Dismiss">✕</button></span></div>
+<header class="masthead">
+  <div class="wrap">
+    <div class="mast-top">
+      <span class="date">{{ today_local() }}</span>
+      <a class="logo" href="{{ url_for('public.home') }}">{% if S.logo %}<img src="{{ media_url(S.logo) }}" alt="">{% endif %}{{ S.site_name }}</a>
+      <div class="mast-actions">
+        <a class="btn brand" href="{{ url_for('members.submit_choose') }}">Submit</a>
+        {% if member %}<a class="btn" href="{{ url_for('members.me') }}" title="My submissions and profile">@{{ member.username }} <span class="pts">{{ member.points }}</span></a>
+        {% else %}<a class="btn" href="{{ url_for('members.login', next=request.path) }}">Log in</a>{% endif %}
+        <a class="btn" href="{{ url_for('public.search') }}" aria-label="Search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></a>
+      </div>
+    </div>
+    <nav class="sections" aria-label="Sections">
+      {% for c in categories if c != 'Events' and not (weather_on and c == 'Weather') %}<a href="{{ category_url(c) }}" {% if cat_name == c %}aria-current="page"{% endif %}>{{ c }}</a>{% endfor %}
+      <a href="{{ url_for('public.events') }}">Events</a>
+      {% if weather_on %}<a href="{{ url_for('public.weather_page') }}" {% if cat_name == 'Weather' %}aria-current="page"{% endif %}>Weather</a>{% endif %}
+    </nav>
+    <nav class="subnav" aria-label="More">
+      <a href="{{ url_for('public.top') }}" {% if list_tab == 'top' %}aria-current="page"{% endif %}>Top</a>
+      <a href="{{ url_for('public.all_articles') }}" {% if list_tab == 'all' %}aria-current="page"{% endif %}>All articles</a>
+      <a href="{{ url_for('public.national_world') }}" {% if list_tab in ('nw', 'national', 'world') %}aria-current="page"{% endif %}>National &amp; World</a>
+      <a href="{{ url_for('sports.scoreboard') }}" {% if tab == 'sports' %}aria-current="page"{% endif %}>Scores</a>
+      <a href="{{ url_for('public.specials_page') }}" {% if tab == 'specials' %}aria-current="page"{% endif %}>Today's specials</a>
+      <a href="{{ url_for('members.leaderboard') }}" {% if tab == 'leaderboard' %}aria-current="page"{% endif %}>Leaderboard</a>
+      {% if S.tips_enabled %}<a href="{{ url_for('public.tip') }}">Send a tip</a>{% endif %}
+      {% if not member %}<a href="{{ url_for('members.join') }}"><b>Join free</b></a>{% endif %}
+    </nav>
+  </div>
+</header>
+{% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="wrap flashes">{% for cat, m in msgs %}<div class="flash {{ 'error' if cat == 'error' }}" role="status">{{ m }}</div>{% endfor %}</div>{% endif %}{% endwith %}
+{% if needs_confirm %}<div class="wrap flashes"><div class="flash warn">Confirm your email to comment, vote and submit. Check your inbox for our link. <form method="post" action="{{ url_for('members.confirm_resend') }}" class="inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="linkbtn">Send it again</button></form></div></div>{% endif %}
+{% if member_notices and request.endpoint != 'members.me' %}
+<div class="wrap flashes"><div class="notices" role="status">
+  {% for n in member_notices %}<div class="notice-item k-{{ n.kind }}">{% if n.link %}<a href="{{ n.link }}">{{ n.text }}</a>{% else %}{{ n.text }}{% endif %}</div>{% endfor %}
+  <form method="post" action="{{ url_for('members.notices_seen') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="linkbtn" aria-label="Dismiss notices">Dismiss</button></form>
+</div></div>
+{% endif %}
+<div id="content">{% block content %}{% endblock %}</div>
+<footer class="site"><div class="wrap">
+  <span class="name">{{ S.site_name }}</span>
+  <nav aria-label="Footer"><a href="{{ url_for('public.page', name='about') }}">About</a><a href="{{ url_for('public.page', name='contact') }}">Contact</a><a href="{{ url_for('public.page', name='corrections') }}">Corrections</a><a href="{{ url_for('public.page', name='ai') }}">How we use AI</a><a href="{{ url_for('public.page', name='privacy') }}">Privacy</a><a href="{{ url_for('public.page', name='terms') }}">Terms</a><a href="{{ url_for('members.partners') }}">Community partners</a><a href="{{ url_for('members.badges') }}">Badges</a><a href="/feed.xml">RSS</a></nav>
+  {% if S.footer_text %}<span style="width:100%">{{ S.footer_text }}</span>{% endif %}
+</div></footer>
+<nav class="tabbar five" aria-label="App">
+  <a href="{{ url_for('public.home') }}" {% if tab == 'news' %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 5h13v14H6a2 2 0 0 1-2-2z"/><path d="M17 8h3v9a2 2 0 0 1-2 2"/><path d="M8 9h5M8 13h5"/></svg>News</a>
+  <a href="{{ url_for('public.top') }}" {% if list_tab == 'top' %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 4l7 8h-4v8H9v-8H5z"/></svg>Top</a>
+  <a href="{{ url_for('members.submit_choose') }}" {% if tab == 'submit' or tab == 'tip' %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"/></svg>Submit</a>
+  {% if weather_on %}<a href="{{ url_for('public.weather_page') }}" {% if cat_name == 'Weather' %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.5 1.5A3.3 3.3 0 0 0 7 18z"/></svg>Weather</a>
+  {% else %}<a href="{{ url_for('sports.scoreboard') }}" {% if tab == 'sports' %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"/></svg>Scores</a>{% endif %}
+  {% if user %}<a href="{{ url_for('admin.overview') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Newsroom</a>
+  {% else %}<a href="{{ url_for('members.me') if member else url_for('members.login') }}" {% if tab == 'me' %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>{{ 'Me' if member else 'Log in' }}</a>{% endif %}
+</nav>
+{% if celebrate %}
+<div class="cele" role="dialog" aria-modal="true" aria-labelledby="cele-h" data-celebrate>
+  <div class="cele-box {{ celebrate.rarity }}">
+    <small>{% if celebrate.secret %}Secret badge discovered{% elif celebrate.leveled %}Level up{% else %}New badge{% endif %} · {{ celebrate.rarity|title }}</small>
+    <span class="cele-ic tier{{ celebrate.tier if celebrate.tier_name else 0 }}" aria-hidden="true">{{ celebrate.icon }}</span>
+    <h2 id="cele-h">{{ celebrate.name }}{% if celebrate.tier_name %} <em>{{ celebrate.tier_name }}</em>{% endif %}</h2>
+    <p>{{ celebrate.description }}.{% if celebrate.holders <= 1 %} <b>You're the first in the county!</b>{% elif celebrate.holders <= 10 %} Only {{ celebrate.holders }} people have this.{% endif %}</p>
+    <div class="cele-btns"><a class="btn brand" href="{{ url_for('members.badge_share', username=member.username, slug=celebrate.slug) }}">Share it</a><button class="btn" type="button" data-cele-close>Nice!</button></div>
+  </div>
+</div>
+{% endif %}
+{% if shout %}<div class="shout" role="status" data-shout="{{ shout.id }}" hidden><span>{{ shout.text }}</span>{% if shout.link %}<a href="{{ shout.link }}">See</a>{% endif %}<button type="button" aria-label="Dismiss" data-shout-close>✕</button></div>{% endif %}
+<script src="{{ url_for('static', filename='public/site.js') }}?v={{ VERSION }}" defer></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

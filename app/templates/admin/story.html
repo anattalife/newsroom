@@ -1,0 +1,232 @@
+{% extends "admin/base.html" %}
+{% set active = 'subs' if s.submission_id else (('src' ~ src.id) if src else 'content') %}
+{% block title %}{{ s.headline }}{% endblock %}
+{% block main %}
+<nav class="eyebrow" aria-label="Breadcrumb">{% if s.submission_id %}<a href="{{ url_for('admin.submissions') }}">From members</a>{% elif src %}<a href="{{ url_for('admin.queue', sid=src.id) }}">{{ src.name }}</a>{% else %}<a href="{{ url_for('admin.content') }}">All content</a>{% endif %} › {{ {'draft':'Draft','scheduled':'Scheduled','published':'Published','rejected':'Rejected'}[s.status] }}{% if s.kind == 'event' %} event{% endif %}</nav>
+<form method="post" enctype="multipart/form-data" class="cols">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+<div class="grow" style="display:flex;flex-direction:column;gap:16px">
+  {% if s.status == 'published' %}<div class="flash">Live on the site since {{ s.published_at|localdate }}. <a href="{{ url_for('public.article', slug=s.slug) }}" target="_blank" rel="noopener"><b>View it</b></a></div>{% endif %}
+  {% if s.status == 'scheduled' %}<div class="flash">Scheduled to publish {{ s.publish_at|localdate }}.</div>{% endif %}
+  {% if member %}
+  <div class="rules"><span class="pill member">Member</span>
+    <span>{{ 'Written by' if s.credit == 'byline' else 'Tip from' }} <a href="{{ url_for('admin.member', mid=member.id) }}">@{{ member.username }}</a></span>
+    <span>{{ 'Credited publicly' if s.credit_public else 'Asked not to be named' }}</span>
+    <span>{{ member.points }} points{% if member.trusted %} · trusted{% endif %}</span>
+    {% if sub %}<a href="{{ url_for('admin.submission', sub_id=sub.id) }}">Original submission</a>{% endif %}
+  </div>
+  {% endif %}
+  {% if s.trusted_publish %}<div class="flash">Published straight away by a trusted member. You can still edit or unpublish it.</div>{% endif %}
+
+  {% if s.checklist %}
+  <section class="notice verify">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2 style="margin:0">Verify before approving</h2><span class="pill {{ s.confidence }}">{{ s.confidence|title }} confidence</span></div>
+    {% for c in s.checklist %}<label class="check"><input class="vcheck" type="checkbox" name="checked" value="{{ loop.index0 }}" {{ 'checked' if c.checked }}> <span>{{ c.text }}</span></label>{% endfor %}
+  </section>
+  {% else %}
+  <div><span class="pill {{ s.confidence }}">{{ s.confidence|title }} confidence</span> <span class="small muted">Nothing flagged to verify.</span></div>
+  {% endif %}
+
+  {% if s.kind == 'story' and can('editor') and s.status != 'rejected' %}
+  <section class="card fixit" aria-labelledby="fix-h">
+    {% if s.dev.gaps %}
+    <h2 id="fix-h">Missing from this story</h2>
+    <ul class="gaps">{% for gp in s.dev.gaps %}<li>{{ gp }}</li>{% endfor %}</ul>
+    {% else %}<h2 id="fix-h">Add or change something</h2>{% endif %}
+    <label class="f"><span class="sr">Tell the AI what to add or change</span>
+      <textarea name="note" rows="2" style="min-height:64px" placeholder="{{ 'Type what you know, like: ' ~ (s.dev.gaps[0] if s.dev.gaps else 'It starts at 7 p.m. Friday in the fieldhouse') if s.dev.gaps else 'Like: It starts at 7 p.m. Friday. Or: make the lead about the coach.' }}"></textarea></label>
+    <div class="btns">
+      <button class="btn dark" type="submit" name="action" value="revise" formnovalidate data-working="Updating… (about 15 seconds)" {{ 'disabled' if not ai_ready }}>Update the article</button>
+      {% if s.dev.undo %}<button class="btn" type="submit" name="action" value="undo" formnovalidate>Undo last update</button>{% endif %}
+      <span class="small muted">It changes only what your note needs. You can also edit the article directly below.</span>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="card form">
+    <label class="f">Headline<input type="text" name="headline" value="{{ s.headline }}" required maxlength="200" style="font-size:18px;font-weight:600"></label>
+    <label class="f">Summary<input type="text" name="summary" value="{{ s.summary }}" maxlength="400"></label>
+    <div class="two">
+      <label class="f">Category<select name="category" data-subcat-parent>{% for c in categories %}<option {{ 'selected' if c == s.category }}>{{ c }}</option>{% endfor %}{% if s.category not in categories %}<option selected>{{ s.category }}</option>{% endif %}</select></label>
+      <label class="f" data-subcat-wrap {% if not subcats.get(s.category) %}hidden{% endif %}>Subcategory<select name="subcategory" data-subcat><option value="">None</option>{% for cat, subs in subcats.items() %}{% for x in subs %}<option value="{{ x }}" data-cat="{{ cat }}" {{ 'selected' if cat == s.category and x == s.subcategory }} {% if cat != s.category %}hidden disabled{% endif %}>{{ x }}</option>{% endfor %}{% endfor %}</select></label>
+      <label class="f">Byline<input type="text" name="byline" value="{{ s.byline }}"></label>
+    </div>
+    {% if s.kind == 'event' %}
+    <div class="three">
+      <label class="f">Starts<input type="datetime-local" name="event_start" value="{{ event_start_local }}"></label>
+      <label class="f">Ends<input type="datetime-local" name="event_end" value="{{ event_end_local }}"></label>
+      <label class="f">Location<input type="text" name="event_location" value="{{ s.event_location or '' }}"></label>
+    </div>
+    {% endif %}
+    <div class="f" data-editor>
+      <span id="body-label">{{ 'Details' if s.kind == 'event' else 'Article' }}</span>
+      <div class="toolbar" role="toolbar" aria-label="Formatting">
+        <button type="button" data-cmd="bold" aria-label="Bold"><b>B</b></button>
+        <button type="button" data-cmd="italic" aria-label="Italic"><i>I</i></button>
+        <button type="button" data-cmd="h2" aria-label="Subheading">H</button>
+        <button type="button" data-cmd="p" aria-label="Normal paragraph">¶</button>
+        <button type="button" data-cmd="insertUnorderedList" aria-label="Bulleted list">• List</button>
+        <button type="button" data-cmd="createLink" aria-label="Add link">Link</button>
+      </div>
+      <div class="editor" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="body-label" hidden>{{ body_marked|safe }}</div>
+      <textarea name="body" aria-labelledby="body-label" style="min-height:260px">{{ s.body }}</textarea>
+    </div>
+  </section>
+
+  {% if s.factcheck %}
+  <section class="notice" style="display:flex;flex-direction:column;gap:6px">
+    <h2 style="margin:0">Fact-check: {{ s.factcheck|length }} thing{{ 's' if s.factcheck|length != 1 }} the material doesn't support</h2>
+    <span class="small">Highlighted in yellow in the article. The highlights aren't saved or published.</span>
+    {% for f in s.factcheck %}<div class="small"><mark class="fc">{{ f.text }}</mark> {{ f.problem }}</div>{% endfor %}
+  </section>
+  {% endif %}
+
+  {% if s.cites %}
+  <section class="card" style="display:flex;flex-direction:column;gap:8px">
+    <h2>Sources</h2>
+    {% for c in s.cites %}<div class="btns small"><span class="pill {{ c.trust }}">{{ TRUST.get(c.trust, c.trust).split(' (')[0] }}</span>{% if c.url and c.url.startswith('http') %}<a href="{{ c.url }}" target="_blank" rel="noopener">{{ c.title or c.name }}</a>{% else %}<span>{{ c.title or c.name }}</span>{% endif %}{% if c.title %}<span class="muted">· {{ c.name }}</span>{% endif %}</div>{% endfor %}
+  </section>
+  {% endif %}
+
+  {% if tip %}
+  <section class="card" style="display:flex;flex-direction:column;gap:10px">
+    <h2>From a reader tip</h2>
+    <p style="margin:0;white-space:pre-line">{{ tip.text }}</p>
+    <span class="small muted">{{ tip.location }}{% if not tip.anonymous and (tip.name or tip.contact) %} · Sender (private): {{ tip.name }} {{ tip.contact }}{% endif %}</span>
+  </section>
+  {% endif %}
+  {% if photos %}
+  <section class="card" style="display:flex;flex-direction:column;gap:10px">
+    <h2>Submitted photos</h2>
+    <div class="photos">{% for p in photos %}<div style="display:flex;flex-direction:column;gap:6px"><img src="{{ url_for('admin.private_upload', name=p) }}" alt="Submitted photo {{ loop.index }}">
+      {% if can('editor') %}<button class="btn small" type="submit" name="action" value="use_photo:{{ p }}" formnovalidate>{{ 'Using this photo' if s.image == p else 'Use as story photo' }}</button>{% endif %}</div>{% endfor %}</div>
+    <span class="small muted">The sender confirmed they took these or have permission to share them. They're credited on the article.</span>
+  </section>
+  {% endif %}
+
+  {% if s.status == 'published' %}
+  <section class="card form">
+    <h2>Add a correction</h2>
+    {% for c in s.corrections %}<p class="small" style="margin:0"><b>{{ c.at|localdate }}:</b> {{ c.text }}</p>{% endfor %}
+    <label class="f">Correction note<textarea name="correction" placeholder="An earlier version of this story said… It is…"></textarea><span class="help">Shown at the end of the story with today's date. Fix the text above too, then Save.</span></label>
+  </section>
+  {% endif %}
+</div>
+
+<aside class="card opts" aria-label="Publishing options">
+  <h2>Publishing options</h2>
+  {% if cost %}<span class="small muted" style="margin-top:-10px">AI cost for this story: about ${{ '%.2f'|format(cost) }}</span>{% endif %}
+  <label class="f">Video (optional)<input type="url" name="video" value="{{ s.video or '' }}" placeholder="YouTube or Facebook video link">
+    <span class="help">Paste a YouTube link, or a Facebook video or reel link. It plays at the top of the article.{% if s.video and s.dev and s.dev.sources is defined and s.dev.sources|selectattr('url', 'equalto', s.video)|list %} Added automatically because the source is a video.{% endif %}</span></label>
+  {% set ve = video_embed(s.video) %}{% if ve %}<div class="video-embed {{ 'tall' if ve.tall }}"><iframe src="{{ ve.src }}" title="Video preview" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>{% endif %}
+  <div class="f"><span>Image</span>
+    {% if s.image %}<img src="{{ url_for('admin.private_upload', name=s.image) }}" alt="" style="width:100%;border-radius:8px">
+      <label class="f">Image description<input type="text" name="image_alt" value="{{ s.image_alt or '' }}"><span class="help">For screen readers.</span></label>
+      <label class="check"><input type="checkbox" name="remove_image"> Remove image{% if s.kind == 'story' %} (a headline graphic is made on publish){% endif %}</label>
+    {% else %}<div class="thumb" style="width:100%;height:150px"><span class="c">{{ s.category|upper }}</span><span class="h" style="font-size:15px">{{ s.headline }}</span></div>
+      <span class="help">{% if s.kind == 'story' %}A headline graphic like this is made when you publish, unless you upload a photo.{% endif %}</span>{% endif %}
+    <label class="f" style="font-weight:400">Upload a photo instead<input type="file" name="image" accept="image/jpeg,image/png"></label>
+  </div>
+  {% if s.kind == 'story' %}
+  <label class="check"><input type="checkbox" name="featured" {{ 'checked' if s.featured }}> <span><b>Featured</b><br><span class="small muted">On the homepage and at the top of its category page.</span></span></label>
+  {% endif %}
+  <label class="check"><input type="checkbox" name="breaking" {{ 'checked' if s.breaking }}> <span><b>Breaking news</b><br><span class="small muted">Red banner across the top of the site for 24 hours.</span></span></label>
+  <div class="two">
+    <label class="f">Where it belongs<select name="scope">{% for k, l in [('local','Local'),('national','National'),('world','World')] %}<option value="{{ k }}" {{ 'selected' if s.scope == k }}>{{ l }}</option>{% endfor %}</select></label>
+    <label class="f">Comments<select name="comments_mode">{% for k, l in [('open','Open'),('locked','Locked (read only)'),('off','Off')] %}<option value="{{ k }}" {{ 'selected' if s.comments_mode == k }}>{{ l }}</option>{% endfor %}</select></label>
+  </div>
+  {% if member and s.credit == 'byline' %}
+  <label class="check"><input type="checkbox" name="edited_note" {{ 'checked' if s.edited_note }}> <span><b>Show “{{ S.edited_note_text }}”</b><br><span class="small muted">For member articles you changed.</span></span></label>
+  {% endif %}
+
+  {% if s.kind == 'story' and not s.wire %}
+  <fieldset style="border:none;margin:0;padding:0;display:flex;flex-direction:column">
+    <legend style="font-size:14px;font-weight:600;margin-bottom:4px;padding:0">Where to share</legend>
+    <input type="hidden" name="share_form" value="1">
+    <label class="opt-row" style="padding:6px 0"><input type="checkbox" checked disabled> <span style="flex:1">Website and app</span><span class="small muted">Always</span></label>
+    {% if not site_url_set %}<p class="small" style="color:var(--amber);margin:4px 0">Set your website address in Settings → Publication so posts can link to it.</p>{% endif %}
+    {% for key, label, ok in platforms %}{% set cur = share.get(key) or {} %}
+    <div class="share" id="share-{{ key }}">
+      <label class="opt-row {{ 'dis' if not ok }}"><input type="checkbox" name="share_{{ key }}" {{ 'checked' if cur.on }} {{ 'disabled' if not ok or cur.status in ('posted', 'pending') }}> <span style="flex:1">{{ label }}</span>
+        {% if cur.status %}<span class="pill {{ cur.status }}">{{ {'posted':'Posted','failed':'Failed','pending':'Posting…'}[cur.status] }}</span>
+        {% elif not ok %}<a class="small" href="{{ url_for('admin.social_accounts') }}#{{ key }}">Connect</a>{% endif %}</label>
+      {% if cur.status == 'posted' and cur.url %}<a class="st" href="{{ cur.url }}" target="_blank" rel="noopener">View the post ↗</a>{% endif %}
+      {% if cur.status == 'failed' %}<span class="st" style="color:var(--red)">{{ cur.error }}</span>
+        {% if can('editor') %}<button class="btn small" type="submit" name="action" value="retry_social:{{ key }}" style="align-self:flex-start">Try again</button>{% endif %}{% endif %}
+      {% if ok and cur.status not in ('posted', 'pending') %}
+      <textarea name="share_text_{{ key }}" data-limit="{{ limits[key] }}" aria-label="{{ label }} post text">{{ cur.text or s.social_text or s.summary }}</textarea>
+      <span class="cnt"></span>
+      {% endif %}
+    </div>
+    {% endfor %}
+    <span class="small muted" style="padding-top:6px">Posts go out within a minute of publishing, with a link and the story's image.</span>
+  </fieldset>
+  {% endif %}
+
+  {% if s.status in ('draft', 'scheduled') and can('editor') %}
+  <fieldset style="border:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px">
+    <legend style="font-size:14px;font-weight:600;margin-bottom:8px;padding:0">When</legend>
+    <label class="check"><input type="radio" name="when" value="now" {{ 'checked' if s.status != 'scheduled' }}> Publish now</label>
+    <label class="check"><input type="radio" name="when" value="later" {{ 'checked' if s.status == 'scheduled' }}> Schedule</label>
+    <div id="schedule-box" {{ 'hidden' if s.status != 'scheduled' }}><input type="datetime-local" name="publish_at" value="{{ publish_local }}" aria-label="Publish at"></div>
+  </fieldset>
+  {% endif %}
+
+  <div style="display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line2);padding-top:14px">
+    {% if s.status in ('draft', 'scheduled') %}
+      {% if can('editor') %}
+      <button class="btn go" id="btn-approve" type="submit" name="action" value="approve" data-needs-checks {{ 'hidden' if s.status == 'scheduled' }}>Approve and publish</button>
+      <button class="btn go" id="btn-schedule" type="submit" name="action" value="schedule" data-needs-checks {{ 'hidden' if s.status != 'scheduled' }}>{{ 'Update schedule' if s.status == 'scheduled' else 'Approve and schedule' }}</button>
+      <span class="small muted" id="approve-hint" style="text-align:center" aria-live="polite"></span>
+      {% else %}<p class="small muted" style="margin:0">Reviewers can edit and tick the checklist. An editor publishes.</p>{% endif %}
+      <div class="btns"><button class="btn" type="submit" name="action" value="save" style="flex:1">Save draft</button>
+      {% if s.status == 'draft' and s.dev and s.dev.sources is defined and can('editor') %}<button class="btn" type="submit" name="action" value="redevelop" style="flex:1" title="Back to the questions and details, then write it again">Back to Develop</button>{% endif %}</div>
+      {% if s.kind == 'story' and s.dev and s.dev.sources is defined and can('editor') and ai_ready %}<button class="btn" type="submit" name="action" value="factcheck">Check facts</button>{% endif %}
+      {% if s.status == 'scheduled' and can('editor') %}<button class="btn" type="submit" name="action" value="unpublish">Unschedule</button>{% endif %}
+      {% if can('editor') %}
+      <details><summary class="small" style="cursor:pointer;color:var(--red)">Reject…</summary>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px"><input type="text" name="reject_reason" placeholder="Reason (optional, private)" aria-label="Reason for rejecting">
+        <button class="btn danger" type="submit" name="action" value="reject">Reject draft</button></div></details>
+      {% endif %}
+    {% elif s.status == 'published' %}
+      <button class="btn dark" type="submit" name="action" value="save">Save changes</button>
+      {% if can('editor') %}<button class="btn danger" type="submit" name="action" value="unpublish" data-confirm="Take this story off the site?">Unpublish</button>{% endif %}
+    {% else %}
+      <button class="btn" type="submit" name="action" value="restore">Move back to drafts</button>
+    {% endif %}
+  </div>
+</aside>
+</form>
+
+<section class="card form" id="callit" style="max-width:760px;margin-top:18px">
+  <h2>🎯 Call It</h2>
+  {% if call and call.status != 'void' %}
+    <p style="margin:0"><b>{{ call.question }}</b> <span class="small muted">{{ call.count }} guesses · {% if call.status == 'resolved' %}settled: {{ call.answer }}{{ (' ' ~ call.unit) if call.unit }}{% elif call.closed %}closed {{ call.closes_label }}, waiting for the answer{% else %}closes {{ call.closes_label }}{% endif %}</span></p>
+    {% if call.kind == 'choice' and call.spread %}<p class="small muted" style="margin:0">{% for c in call.spread %}{{ c.label }}: {{ c.n }}{{ ' · ' if not loop.last }}{% endfor %}</p>{% endif %}
+    <form method="post" action="{{ url_for('admin.story_callit', sid=s.id) }}" class="btns">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="pid" value="{{ call.id }}">
+      {% if call.kind == 'number' %}<input type="text" name="answer" inputmode="decimal" placeholder="The real number{{ (', in ' ~ call.unit) if call.unit }}" style="width:220px" value="{{ call.answer or '' }}">
+      {% else %}<select name="answer" style="width:auto">{% for c in call.choices_list %}<option {{ 'selected' if c == call.answer }}>{{ c }}</option>{% endfor %}</select>{% endif %}
+      <button class="btn dark small" name="action" value="resolve">{{ 'Fix the answer' if call.status == 'resolved' else 'Settle it' }}</button>
+      <button class="btn small" name="action" value="void" data-confirm="Remove this Call It? Any points it gave are taken back.">Remove</button>
+    </form>
+    <p class="small muted" style="margin:0">Settling gives the closest guess {{ S.pts_callit_win }} points and a shot at the 👑 Oracle crown; the next closest get {{ S.pts_callit_close }}. You can fix the answer later; points are redone.</p>
+  {% else %}
+    <p class="small muted" style="margin:0">Add a quick prediction to the end of this story, like the snow total, the vote count, or whether a millage passes. Readers guess; when you enter the real answer, the closest win points.</p>
+    <form method="post" action="{{ url_for('admin.story_callit', sid=s.id) }}" class="form" style="gap:10px">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label class="f">Question<input type="text" name="question" maxlength="200" placeholder="How much snow will Hillsdale get Tuesday?" required></label>
+      <div class="grid2">
+        <label class="f">Kind<select name="kind"><option value="number">A number (closest wins)</option><option value="choice">Multiple choice</option></select></label>
+        <label class="f">Guessing closes<input type="datetime-local" name="closes_at" required></label>
+        <label class="f">Lowest guess<input type="number" step="any" name="lo" value="0"></label>
+        <label class="f">Highest guess<input type="number" step="any" name="hi" value="12"></label>
+        <label class="f">Step<input type="number" step="any" name="step" value="0.5"></label>
+        <label class="f">Unit (optional)<input type="text" name="unit" maxlength="20" placeholder="inches"></label>
+      </div>
+      <label class="f">Answers, for multiple choice (one per line)<textarea name="choices" rows="3" placeholder="Yes, it passes&#10;No, it fails"></textarea></label>
+      <div class="btns"><button class="btn dark" name="action" value="create">Add Call It</button></div>
+    </form>
+  {% endif %}
+</section>
+{% endblock %}

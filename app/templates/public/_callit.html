@@ -1,0 +1,46 @@
+{# The Call It box, on stories and game pages. p comes from views.public.callit_view. #}
+{% macro callit_box(p, gm=None) -%}
+<section class="callit {{ p.kind }} {{ 'done' if p.status == 'resolved' else '' }}" id="callit" aria-labelledby="callit-h">
+  <p class="ci-q" id="callit-h">🎯 {% if p.kind == 'score' %}Call the score: {{ gm.us }} vs. {{ gm.opponent }}{% else %}Call It: {{ p.question }}{% endif %}</p>
+  <span class="meta">{% if p.status == 'resolved' %}Settled · {{ p.count }} {{ 'person' if p.count == 1 else 'people' }} called it{% elif p.closed %}Guessing closed · {{ p.count }} called it · results soon{% else %}{{ p.count }} {{ 'person has' if p.count == 1 else 'people have' }} called it · closes {{ 'at kickoff' if p.kind == 'score' else p.closes_label }}{% endif %}</span>
+
+  {% if p.status == 'resolved' %}
+    <div class="ci-answer">
+      {% if p.kind == 'score' %}{% set a = p.answer.split('-') %}<b>Final: {{ gm.us }} {{ a[0] }}, {{ gm.opponent }} {{ a[1] }}</b>
+      {% else %}<b>The answer: {{ p.answer }}{{ (' ' ~ p.unit) if p.unit }}</b>{% endif %}
+      {% if p.mine %}<span>You said {{ p.mine.value|replace('-', '–') }}{{ (' ' ~ p.unit) if p.unit and p.kind == 'number' }}.
+        {% if p.mine.exact and p.kind != 'choice' %}<b>Exactly right! +{{ p.mine.points }} points.</b>{% elif p.mine.won %}<b>Closest guess! +{{ p.mine.points }} points and the Oracle race.</b>{% elif p.mine.points %}<b>+{{ p.mine.points }} points.</b>{% if p.kind == 'number' %} You were #{{ p.mine.rank }} of {{ p.count }}.{% endif %}{% else %}Better luck next time!{% endif %}</span>{% endif %}
+    </div>
+    {% if p.results %}<ol class="ci-top">{% for r in p.results %}<li><span>{{ '👑 ' if r.won }}@{{ r.username }}</span><b>{{ r.value|replace('-', '–') }}{{ (' ' ~ p.unit) if p.unit and p.kind == 'number' }}</b><span class="meta">+{{ r.points }}</span></li>{% endfor %}</ol>{% endif %}
+  {% elif p.mine %}
+    <p class="ci-mine">🔒 You called it: <b>{{ p.mine.value|replace('-', '–') }}{{ (' ' ~ p.unit) if p.unit and p.kind == 'number' }}</b></p>
+  {% elif p.closed %}
+  {% elif member %}
+    <form method="post" action="{{ url_for('public.callit_guess', pid=p.id) }}" class="ci-form">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      {% if p.kind == 'number' %}
+        <div class="ci-range"><input type="range" name="value" min="{{ p.lo }}" max="{{ p.hi }}" step="{{ p.step }}" value="{{ ((p.lo + p.hi) / 2 / p.step)|round|int * p.step }}" aria-label="Your guess" data-ci-range data-unit="{{ p.unit }}"><output data-ci-out>{{ ((p.lo + p.hi) / 2 / p.step)|round|int * p.step }}{{ (' ' ~ p.unit) if p.unit }}</output></div>
+      {% elif p.kind == 'choice' %}
+        <div class="ci-choices">{% for c in p.choices_list %}<label class="ci-choice"><input type="radio" name="value" value="{{ c }}" required> <span>{{ c }}</span></label>{% endfor %}</div>
+      {% else %}
+        <div class="ci-score"><label>{{ gm.us }}<input type="number" name="ours" min="0" max="999" inputmode="numeric" required></label><span>–</span><label>{{ gm.opponent }}<input type="number" name="theirs" min="0" max="999" inputmode="numeric" required></label></div>
+      {% endif %}
+      <button class="btn brand">Lock it in</button>
+      <span class="meta">One guess, no changes. {% if p.kind == 'score' %}Exact score: {{ S.pts_callit_exact }} points. Right winner: {{ S.pts_callit_winner }}.{% elif p.kind == 'number' %}Closest: {{ S.pts_callit_win }} points and a shot at the 👑 Oracle crown.{% else %}Right answer: {{ S.pts_callit_choice }} points.{% endif %}</span>
+    </form>
+  {% else %}
+    <p class="meta"><a href="{{ url_for('members.join') }}" style="text-decoration:underline">Join free</a> or <a href="{{ url_for('members.login', next=request.path ~ '#callit') }}" style="text-decoration:underline">log in</a> to make your call.</p>
+  {% endif %}
+
+  {% if p.spread %}
+    {% if p.kind == 'number' %}
+    <div class="ci-dist" aria-label="How everyone called it">{% for b in p.spread %}{% set here = p.mine and p.mine.num is not none and p.mine.num >= b.from and p.mine.num < b.from + (p.hi - p.lo) / p.spread|length %}{% set ans = p.status == 'resolved' and p.answer|float >= b.from and p.answer|float < b.from + (p.hi - p.lo) / p.spread|length %}<i class="{{ 'win' if ans else ('me' if here else '') }}" style="height:{{ [b.h, 4]|max }}%" title="{{ b.n }}"></i>{% endfor %}</div>
+    <div class="ci-axis">{% for t in p.ticks %}<span>{{ '%g'|format(t) }}</span>{% endfor %}</div>
+    {% elif p.kind == 'choice' %}
+    <div class="ci-bars">{% for c in p.spread %}<div class="{{ 'win' if p.status == 'resolved' and c.label == p.answer }}"><span>{{ c.label }}</span><span class="bar"><i style="width:{{ c.pct }}%"></i></span><b>{{ c.pct }}%</b></div>{% endfor %}</div>
+    {% else %}
+    <div class="ci-bars"><div><span>{{ gm.us }} wins</span><span class="bar"><i style="width:{{ p.spread.us }}%"></i></span><b>{{ p.spread.us }}%</b></div><div><span>{{ gm.opponent }} wins</span><span class="bar"><i style="width:{{ p.spread.them }}%"></i></span><b>{{ p.spread.them }}%</b></div></div>
+    {% endif %}
+  {% endif %}
+</section>
+{%- endmacro %}

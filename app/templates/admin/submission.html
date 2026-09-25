@@ -1,0 +1,46 @@
+{% extends "admin/base.html" %}
+{% set active = 'subs' %}
+{% block title %}{{ sub.headline or 'Submission' }}{% endblock %}
+{% block main %}
+<nav class="eyebrow"><a href="{{ url_for('admin.submissions') }}">From members</a> › {{ {'waiting':'Waiting','sent_back':'Sent back','published':'Published','declined':'Declined','developing':'In progress','draft':'Draft','withdrawn':'Withdrawn'}[sub.status] }}</nav>
+<div class="cols">
+<div class="grow" style="display:flex;flex-direction:column;gap:16px">
+  <div class="rules"><span class="pill member">{{ 'Wrote it themselves' if sub.kind == 'article' else 'Just the facts' }}</span>
+    <span>From <a href="{{ url_for('admin.member', mid=m.id) }}">@{{ m.username }}</a> ({{ m.points }} points{% if m.trusted %}, trusted{% endif %})</span>
+    <span>{{ 'Wants credit: “' ~ ('By' if sub.kind == 'article' else 'Tip from') ~ ' @' ~ m.username ~ '”' if sub.credit else 'Asked not to be named' }}</span>
+    {% if org %}<span>For {{ org.name }}</span>{% endif %}
+    {% if sub.category %}<span>{{ sub.category }}</span>{% endif %}</div>
+  {% if story %}<div class="flash">This became a story. <a href="{{ url_for('admin.story', sid=story.id) }}"><b>Open it</b></a></div>{% endif %}
+  <section class="card" style="display:flex;flex-direction:column;gap:12px">
+    {% if sub.kind == 'article' %}
+    <h2 style="font:700 26px/1.2 var(--serif)">{{ sub.headline }}</h2>
+    <div style="font:17px/1.6 var(--serif)">{{ sub.body|safe }}</div>
+    {% else %}
+    <dl class="facts">{% for k, label in labels %}{% if facts.get(k) %}<dt>{{ label }}</dt><dd>{{ facts[k] }}</dd>{% endif %}{% endfor %}</dl>
+    {% endif %}
+    {% if sub.video %}<div class="small"><b>Video:</b> <a href="{{ sub.video }}" target="_blank" rel="noopener nofollow">{{ sub.video }}</a> (embedded in the story)</div>{% endif %}
+    {% if links %}<div class="small"><b>Links:</b> {% for u in links %}<a href="{{ u }}" target="_blank" rel="noopener nofollow" style="word-break:break-all">{{ u }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
+    {% if photos %}<div class="photos">{% for p in photos %}<a href="{{ url_for('admin.private_upload', name=p) }}" target="_blank" rel="noopener"><img src="{{ url_for('admin.private_upload', name=p) }}" alt="Photo {{ loop.index }}"></a>{% endfor %}</div>
+    <span class="small muted">They confirmed they took these or have permission to share them.</span>{% endif %}
+  </section>
+</div>
+{% if sub.status in ('waiting', 'sent_back') and can('editor') %}
+<aside class="card opts">
+  <h2>What to do</h2>
+  <form method="post" style="display:flex;flex-direction:column;gap:10px">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    {% if sub.kind == 'article' %}
+    <button class="btn go" name="action" value="publish" data-confirm="Publish it as written?">Publish</button>
+    <span class="small muted">Goes live as written, {{ 'By @' ~ m.username if sub.credit else 'By a community member' }}. +{{ S.pts_article }} points.</span>
+    <button class="btn" name="action" value="edit">Edit, then publish</button>
+    <span class="small muted">Opens it as a draft. It publishes with the note “{{ S.edited_note_text }}”.</span>
+    {% endif %}
+    <button class="btn {{ 'dark' if sub.kind == 'facts' }}" name="action" value="develop">Develop this story</button>
+    <span class="small muted">Uses your AI credits. The member's words count as input from you.{% if sub.kind == 'facts' %} +{{ S.pts_facts }} points when published.{% endif %}</span>
+    <label class="f" style="border-top:1px solid var(--line2);padding-top:12px">Note to the member<textarea name="note" placeholder="For Send back: what to add or change. Optional for Decline.">{{ sub.note }}</textarea></label>
+    <div class="btns"><button class="btn" name="action" value="send_back" style="flex:1">Send back</button><button class="btn danger" name="action" value="decline" style="flex:1">Decline</button></div>
+  </form>
+</aside>
+{% endif %}
+</div>
+{% endblock %}

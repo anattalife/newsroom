@@ -1,0 +1,75 @@
+{% extends "admin/base.html" %}
+{% set active = ('src' ~ src.id) if src else 'content' %}
+{% block title %}Develop: {{ s.headline }}{% endblock %}
+{% block main %}
+<nav class="eyebrow" aria-label="Breadcrumb">{% if src %}<a href="{{ url_for('admin.queue', sid=src.id, tab='developing') }}">{{ src.name }}</a>{% else %}<a href="{{ url_for('admin.content', status='developing') }}">All content</a>{% endif %} › Develop this story</nav>
+<form method="post" class="cols" id="devform">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+<div class="grow" style="display:flex;flex-direction:column;gap:16px">
+  <div>
+    <label class="f">Working headline<input type="text" name="headline" value="{{ s.headline }}" maxlength="200" style="font-size:19px;font-weight:600"></label>
+  </div>
+
+  {% if not ai_ready %}<div class="notice small">{{ ai_problem }} You can fill this in now and write it later.</div>{% endif %}
+
+  <section class="card" style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><h2>What we know so far</h2>{% if dev.analyzed_at %}<span class="small muted">Read {{ dev.analyzed_at|ago }}</span>{% endif %}</div>
+    {% if dev.known %}<ul class="dev-known">{% for k in dev.known %}<li>{{ k }}</li>{% endfor %}</ul>
+    {% else %}<p class="small muted" style="margin:0">Nothing yet{% if not dev.analyzed_at %}: the AI hasn't read the material{% endif %}. Answer the questions below or add details.</p>{% endif %}
+  </section>
+
+  <section class="card" style="display:flex;flex-direction:column;gap:4px">
+    {% set found_n = dev.questions|selectattr('found')|list|length %}
+    <h2>{% if dev.researched %}What the AI looked up{% else %}What's missing{% endif %}</h2>
+    <p class="small muted" style="margin:0 0 6px">{% if dev.researched %}The AI searched the web and answered {{ found_n }} of {{ dev.questions|length }} questions, with sources. Check them, correct anything wrong, and fill in only what it couldn't find. You can also just click Write the article.{% else %}Answer what you can. Anything you leave blank is left out of the article, never guessed.{% endif %}</p>
+    {% if web_problem %}<div class="notice small">{{ web_problem }}</div>{% endif %}
+    {% for q in dev.questions %}
+    <label class="q"><b>{{ q.q }}</b>
+      {% if q.found %}<span class="found">✓ {{ q.found }}{% if q.src %} <span class="small muted">· {% if q.src.startswith('http') %}<a href="{{ q.src }}" target="_blank" rel="noopener">{{ q.src|replace('https://', '')|replace('http://', '')|truncate(60) }}</a>{% else %}{{ q.src }}{% endif %}</span>{% endif %}</span>{% endif %}
+      <textarea name="a{{ loop.index0 }}" rows="2" style="min-height:{{ 44 if q.found else 60 }}px" placeholder="{{ 'Correct or add to this (optional)' if q.found else 'The AI couldn\'t find this. Add it if you know it.' if dev.researched else '' }}">{{ q.a }}</textarea></label>
+    {% endfor %}
+    <details class="q"><summary class="small" style="cursor:pointer;color:var(--blue)">Add your own question and answer</summary>
+      <input type="text" name="new_question" placeholder="Question" style="margin-top:8px"><textarea name="new_answer" rows="2" placeholder="Answer" style="margin-top:8px;min-height:60px"></textarea></details>
+  </section>
+
+  <section class="card form">
+    <label class="f">Paste the body of an article, a press release or your notes (optional)<textarea name="pasted" style="min-height:160px" placeholder="Anything you paste here counts as coming from you, the most reliable source.">{{ dev.pasted or '' }}</textarea></label>
+    <label class="f">More details (optional)<textarea name="details" placeholder="Quotes you got, background, what you saw, corrections to the sources…">{{ dev.details or '' }}</textarea></label>
+    <label class="f">Links for the AI to read (optional, one per line)<textarea name="links" rows="2" style="min-height:60px" placeholder="https://…">{{ (dev.links or [])|join('\n') }}</textarea><span class="help">Click “Look again” after adding links to update what we know and the questions.</span></label>
+  </section>
+
+  <section class="card" style="display:flex;flex-direction:column;gap:8px">
+    <h2>Sources ({{ dev.sources|length }})</h2>
+    <div class="src-list">
+    {% for x in dev.sources %}
+      <div class="src">
+        <div class="btns small"><span class="pill {{ x.trust }}">{{ {'official':'Official','tip':'Tip','outlet':'Other outlet','member':'Member','editor':'You'}.get(x.trust, x.trust) }}</span><b>{{ x.name }}</b></div>
+        {% if x.title %}<span>{% if x.url %}<a href="{{ x.url }}" target="_blank" rel="noopener">{{ x.title }}</a>{% else %}{{ x.title }}{% endif %}</span>{% elif x.url %}<a href="{{ x.url }}" target="_blank" rel="noopener" style="word-break:break-all">{{ x.url }}</a>{% endif %}
+        {% if x.note %}<span class="small" style="color:var(--amber)">{{ x.note }}</span>{% endif %}
+        {% if x.text %}<details><summary>Show the text we have ({{ x.text|length }} characters)</summary><pre>{{ x.text }}</pre></details>{% endif %}
+      </div>
+    {% endfor %}
+    </div>
+    {% if photos %}<div class="photos">{% for p in photos %}<img src="{{ url_for('admin.private_upload', name=p) }}" alt="Submitted photo {{ loop.index }}">{% endfor %}</div><span class="small muted">You can use a photo as the story photo after writing.</span>{% endif %}
+  </section>
+</div>
+
+<aside class="card opts" aria-label="Story options">
+  <h2>Story options</h2>
+  {% if cost %}<span class="small muted">AI cost for this story so far: about ${{ '%.2f'|format(cost) }}</span>{% endif %}
+  <label class="f">Story type<select name="story_type">{% for k, t in templates.items() %}<option value="{{ k }}" {{ 'selected' if s.story_type == k }}>{{ t[0] }}</option>{% endfor %}</select><span class="help">Adds the matching instructions from Settings → Writing instructions.</span></label>
+  <label class="f">Category<select name="category">{% for c in categories %}<option {{ 'selected' if c == s.category }}>{{ c }}</option>{% endfor %}{% if s.category not in categories %}<option selected>{{ s.category }}</option>{% endif %}</select></label>
+  <label class="f">Where it belongs<select name="scope">{% for k, l in [('local','Local'),('national','National'),('world','World')] %}<option value="{{ k }}" {{ 'selected' if s.scope == k }}>{{ l }}</option>{% endfor %}</select></label>
+  <label class="check"><input type="checkbox" name="factcheck" {{ 'checked' if factcheck_default }}> <span><b>Check facts after writing</b><br><span class="small muted">A second, cheaper AI pass flags anything the material doesn't support.</span></span></label>
+  <div style="display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line2);padding-top:14px">
+    <button class="btn go" type="submit" name="action" value="write" data-working="Writing… (about 30 seconds)">Write the article</button>
+    <span class="small muted" style="text-align:center">It writes even if some questions are unanswered.</span>
+    <button class="btn" type="submit" name="action" value="save">Save as In development</button>
+    <button class="btn" type="submit" name="action" value="reanalyze" data-working="Reading… (about 20 seconds)">Look again with what I added</button>
+    {% if s.status == 'developing' and not dev.written_at and not s.published_at %}
+    <button class="btn link" type="submit" name="action" value="abandon" style="color:var(--red)" data-confirm="Stop developing this? The items go back to New items.">Stop developing</button>
+    {% else %}<button class="btn link" type="submit" name="action" value="abandon">Back to the draft, unchanged</button>{% endif %}
+  </div>
+</aside>
+</form>
+{% endblock %}

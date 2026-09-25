@@ -1,0 +1,14 @@
+{% extends "public/base.html" %}
+{% block title %}Reset your password · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap"><div class="page narrow">
+  <h1>Reset your password</h1>
+  {% if sent %}<p class="prose">If that email has an account, we've sent a link. It works for an hour. Check your spam folder too.</p>
+  {% elif not email_on %}<p class="prose">We can't send reset emails right now. Please <a href="{{ url_for('public.page', name='contact') }}" style="color:var(--blue);text-decoration:underline">contact us</a> and we'll reset it for you.</p>
+  {% else %}
+  <form method="post" class="stack"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label class="f">Your email<input type="email" name="email" required autocomplete="email"></label>
+    <div><button class="btn solid" type="submit">Send me a link</button></div></form>
+  {% endif %}
+</div></div>
+{% endblock %}

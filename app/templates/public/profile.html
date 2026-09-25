@@ -1,0 +1,30 @@
+{% extends "public/base.html" %}
+{% block title %}@{{ m.username }} · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap"><div class="page">
+  <div class="prof-head">
+    <span class="avatar-lg">{% if m.photo %}<img src="{{ media_url(m.photo) }}" alt="">{% else %}{{ m.username[:1]|upper }}{% endif %}</span>
+    <div>
+      <h1>@{{ m.username }}{% if m.staff_user_id %} <span class="staff">Staff</span>{% endif %}</h1>
+      {% if m.display_name %}<div class="dek">{{ m.display_name }}</div>{% endif %}
+      <div class="meta">{{ m.points }} points · joined {{ m.created_at|localdate(false) }}{% if m.town %} · {{ m.town }}{% endif %}</div>
+    </div>
+  </div>
+  <div class="card-lvl">
+    <div class="lvl-badge"><span>Level {{ lvl.n }}</span><b>{{ lvl.name }}</b></div>
+    <div class="lvl-bar">{% if lvl.next %}<span class="meta">{{ lvl.to_go }} points to <b>{{ lvl.next }}</b></span><span class="bar"><i style="width:{{ lvl.pct }}%"></i></span>{% else %}<span class="meta"><b>The top level.</b> A true Hall of Famer.</span>{% endif %}</div>
+  </div>
+  {% if worn %}<div class="worn">{% for c in worn %}<span class="crown big">👑 {{ c.label }}</span>{% endfor %}</div>{% endif %}
+  {% if m.bio %}<p class="prose">{{ m.bio }}</p>{% endif %}
+  {% for o in orgs %}<p class="partner-tag">🤝 Shares news for <b>{{ o.name }}</b></p>{% endfor %}
+  <div class="stats"><div><b>{{ stories|length }}</b><span>published</span></div><div><b>{{ comments }}</b><span>comments</span></div><div><b>{{ badges|length }}<small>/{{ book_total }}</small></b><span>badges</span></div><div><b>{{ called.won or 0 }}</b><span>Call It wins</span></div></div>
+  {% if badges %}<h2 class="h-sec">Best badges <a href="{{ url_for('members.badges') }}" class="h-link">Badge Book →</a></h2>
+  <div class="showcase">{% for b in badges[:8] %}<a class="sc-badge" href="{{ url_for('members.badge_share', username=m.username, slug=b.slug) }}" title="{{ ('Secret badge: ' ~ b.hint) if b.secret else b.description }}"><span class="bb-ic {{ ('tier' ~ b.tier) if b.tier_name else 'tier3' }}">{{ b.icon }}</span><b>{{ b.name }}</b><span class="bb-tier t{{ b.tier if b.tier_name else 3 }}">{{ b.tier_name or ('Secret' if b.secret else 'Earned') }}</span></a>{% endfor %}</div>
+  {% if badges|length > 8 %}<p class="meta">and {{ badges|length - 8 }} more.</p>{% endif %}{% endif %}
+  <h2 class="h-sec" style="margin-top:28px">Published</h2>
+  {% for s in stories %}<a class="li" href="{{ url_for('public.article', slug=s.slug) }}"><span class="meta">{{ s.published_at|ago }} · {{ s.category }} · {{ 'Wrote it' if s.credit == 'byline' else 'Sent the tip' }}{% if s.featured %} · Featured{% endif %}</span><b>{{ s.headline }}</b></a>
+  {% else %}<p class="meta">Nothing published with their name yet.</p>{% endfor %}
+  {% if recent %}<h2 class="h-sec" style="margin-top:28px">Recent comments</h2>
+  {% for c in recent %}<div class="li"><span class="meta">On <a href="{{ url_for('public.article', slug=c.slug) }}#c{{ c.id }}" style="text-decoration:underline">{{ c.headline }}</a> · {{ c.created_at|ago }} · ▲ {{ c.upvotes }}</span>{{ c.body|plain }}</div>{% endfor %}{% endif %}
+</div></div>
+{% endblock %}

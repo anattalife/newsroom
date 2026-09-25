@@ -1,0 +1,29 @@
+{% extends "public/base.html" %}
+{% block title %}{{ title }} · {{ S.site_name }}{% endblock %}
+{% set friendly = name in ('about', 'ai', 'contact', 'corrections') %}
+{% block content %}
+<div class="info-hero"><div class="wrap">
+  <h1>{{ title }}</h1>
+</div></div>
+<div class="wrap"><div class="page info">
+  <div class="prose">{{ body|safe }}</div>
+  {% if name == 'contact' and (S.contact_email or S.phone or S.address) %}
+  <div class="contact-card">
+    {% if S.contact_email %}<div><span class="meta">Email</span><a href="mailto:{{ S.contact_email }}">{{ S.contact_email }}</a></div>{% endif %}
+    {% if S.phone %}<div><span class="meta">Phone</span><a href="tel:{{ S.phone|replace(' ', '') }}">{{ S.phone }}</a></div>{% endif %}
+    {% if S.address %}<div><span class="meta">Mail</span><span style="white-space:pre-line">{{ S.address }}</span></div>{% endif %}
+  </div>
+  {% endif %}
+  {% if friendly %}
+  <aside class="join-card" aria-labelledby="join-h">
+    <h2 id="join-h">Be part of {{ S.site_name }}</h2>
+    <p>Send a tip, share your group's news, or join free to comment, vote and earn badges.</p>
+    <div class="row">
+      {% if not member %}<a class="btn brand" href="{{ url_for('members.join') }}">Join free</a>{% endif %}
+      <a class="btn solid" href="{{ url_for('members.submit_choose') }}">Send us news</a>
+      <a class="btn" href="{{ url_for('members.partners') }}">For churches, schools &amp; clubs</a>
+    </div>
+  </aside>
+  {% endif %}
+</div></div>
+{% endblock %}

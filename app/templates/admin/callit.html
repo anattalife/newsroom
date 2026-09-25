@@ -1,0 +1,18 @@
+{% extends "admin/base.html" %}
+{% set active = 'callit' %}
+{% block title %}Call It{% endblock %}
+{% block main %}
+<div class="head"><div><h1>🎯 Call It</h1><div class="sub">Quick predictions readers play on stories and games. Add one to any story from the story editor (at the bottom). Games get "Call the score" automatically and settle themselves once the final score is checked.</div></div></div>
+<div class="kv" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+  <div><span class="small muted">Games with "Call the score"</span><b>{{ games.games or 0 }}</b></div>
+  <div><span class="small muted">Score guesses so far</span><b>{{ games.guesses or 0 }}</b></div>
+</div>
+<div class="card" style="padding:0;overflow:auto"><table class="list"><thead><tr><th>Question</th><th>Guesses</th><th>Status</th><th></th></tr></thead><tbody>
+{% for r in rows %}
+<tr><td><b>{{ r.question }}</b><br><span class="small muted">on <a href="{{ url_for('public.article', slug=r.slug) }}" target="_blank" rel="noopener">{{ r.headline }}</a></span></td>
+<td>{{ r.n }}</td>
+<td>{% if r.status == 'resolved' %}<span class="pill ok">Settled: {{ r.answer }}{{ (' ' ~ r.unit) if r.unit }}</span>{% elif r.closed %}<span class="pill bad">Needs the answer</span>{% else %}<span class="pill">Open until {{ r.closes_label }}</span>{% endif %}</td>
+<td><a class="btn small {{ 'dark' if r.closed and r.status != 'resolved' }}" href="{{ url_for('admin.story', sid=r.story_id) }}#callit">{{ 'Settle it' if r.closed and r.status != 'resolved' else 'Open' }}</a></td></tr>
+{% else %}<tr><td colspan="4" class="empty">No Call Its on stories yet. Open any story and add one at the bottom: snow totals, vote counts, fair attendance…</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

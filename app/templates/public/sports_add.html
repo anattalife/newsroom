@@ -1,0 +1,11 @@
+{% extends "public/base.html" %}
+{% set cat_name = 'Sports' %}
+{% block title %}Add a schedule · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap sports" style="padding-top:28px;padding-bottom:48px;max-width:1100px">
+  <p><a href="{{ url_for('sports.scoreboard') }}" class="meta" style="text-decoration:underline">← All scores</a></p>
+  <h1 style="font:700 34px var(--serif);margin:0 0 6px">Add a schedule</h1>
+  <p class="meta" style="margin:0 0 18px">Paste a season's schedule in any format and we'll turn it into games everyone can follow. Thanks for helping!</p>
+  {% include "_sports_paste.html" %}
+</div>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "public/base.html" %}
+{% from "public/_authorbox.html" import authorbox with context %}
+{% block title %}Manage {{ o.name }} · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap" style="padding-top:28px;padding-bottom:48px;max-width:1100px">
+  <p><a href="{{ url_for('members.me') }}" class="meta" style="text-decoration:underline">← My profile</a></p>
+  <h1 style="font:700 34px var(--serif);margin:0 0 6px">{{ o.name }}</h1>
+  <p class="meta" style="margin:0 0 20px">Your author box appears at the end of every story you share. Changes show up on all your stories as soon as you save. <a href="#specials" style="text-decoration:underline">Post a special ↓</a></p>
+  <div class="ab-manage">
+    <form method="post" enctype="multipart/form-data" class="stack" data-ab-form>
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      {% if error %}<div class="err" role="alert">{{ error }}</div>{% endif %}
+      <fieldset class="ab-logo-field"><legend>Logo</legend>
+        {% if o.logo %}<img src="{{ media_url(o.logo) }}" alt="Your current logo" class="ab-current">{% endif %}
+        <label class="f">{{ 'Upload a new logo' if o.logo else 'Upload your logo' }} <span class="meta" style="font-weight:400">A square JPG or PNG works best.</span><input type="file" name="logo" accept="image/jpeg,image/png" data-ab-in="logo"></label>
+        {% if o.logo %}<label class="check"><input type="checkbox" name="remove_logo" data-ab-in="remove_logo"> Remove our logo</label>{% endif %}
+      </fieldset>
+      <label class="f">About us <span class="meta" style="font-weight:400">A sentence or two about who you are. <span data-ab-count>{{ (o.description or '')|length }}</span>/{{ about_max }}</span>
+        <textarea name="description" rows="4" maxlength="{{ about_max }}" data-ab-in="about" placeholder="A welcoming congregation in downtown Hillsdale since 1843. Sunday worship at 10:30 a.m.">{{ o.description or '' }}</textarea></label>
+      <label class="f">Address <span class="meta" style="font-weight:400">Optional</span><input type="text" name="address" maxlength="200" value="{{ o.address or '' }}" data-ab-in="address"></label>
+      <label class="f">Website <span class="meta" style="font-weight:400">Optional. Starts with https://</span><input type="text" name="website" maxlength="300" placeholder="https://" value="{{ o.website or '' }}" data-ab-in="website"></label>
+      <label class="f">Events calendar link <span class="meta" style="font-weight:400">Optional. An .ics or iCal link; your events then appear on our calendar.</span><input type="text" name="calendar_url" maxlength="500" placeholder="https://" value="{{ o.calendar_url or '' }}"></label>
+      <div><button class="btn brand">Save</button></div>
+      <p class="meta" style="margin:0">To change your organization's name or section, <a href="{{ url_for('public.page', name='contact') }}" style="text-decoration:underline">let us know</a>.</p>
+    </form>
+    <div class="ab-preview-col">
+      <span class="kicker" style="color:var(--muted)">Preview</span>
+      {{ authorbox(o, preview=True) }}
+      {% if stories %}<div class="ab-recent"><span class="meta">See it on your stories</span>{% for st in stories %}<a href="{{ url_for('public.article', slug=st.slug) }}" target="_blank" rel="noopener">{{ st.headline }}</a>{% endfor %}</div>{% endif %}
+    </div>
+  </div>
+
+  <section id="specials" class="sp-post" aria-labelledby="sp-h">
+    <h2 id="sp-h" style="font:700 26px var(--serif);margin:0">Today's specials</h2>
+    <p class="meta" style="margin:0">Lunch special, soup of the day, a fish fry or pie sale: post it here and it shows on <a href="{{ url_for('public.specials_page') }}" style="text-decoration:underline">Today's specials</a> and the homepage that day. Free.</p>
+    <form method="post" enctype="multipart/form-data" class="stack">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="row"><label class="f grow">What's the special?<input type="text" name="title" required maxlength="120" placeholder="Pot roast dinner"></label>
+        <label class="f" style="width:150px">Price (optional)<input type="text" name="price" maxlength="30" placeholder="$11.99"></label>
+        <label class="f" style="width:190px">Day<select name="day">{% for d, l in days %}<option value="{{ d }}">{{ l }}</option>{% endfor %}</select></label></div>
+      <label class="f">Details (optional)<textarea name="description" maxlength="600" rows="2" placeholder="Served 11 to 2 with mashed potatoes and a roll"></textarea></label>
+      <label class="f">Photo (optional)<input type="file" name="image" accept="image/jpeg,image/png"></label>
+      <div><button class="btn brand" name="action" value="special">Post special</button></div>
+    </form>
+    {% if specials %}<div class="sp-list"><span class="meta">Coming up</span>
+      {% for sp in specials %}<div class="sub-row"><span style="flex:1"><b>{{ sp.title }}</b>{% if sp.price %} · {{ sp.price }}{% endif %}<br><span class="meta">{{ dict(days).get(sp.day, sp.day) }}</span></span>
+        <form method="post" class="inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ sp.id }}"><button class="btn" name="action" value="delete_special" data-confirm="Take this special down?">Take down</button></form></div>{% endfor %}
+    </div>{% endif %}
+  </section>
+</div>
+{% endblock %}

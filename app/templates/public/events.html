@@ -1,0 +1,15 @@
+{% extends "public/base.html" %}
+{% set tab = 'events' %}
+{% block title %}Events · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap" style="padding-top:32px;padding-bottom:48px;max-width:900px">
+  <h1 style="font:700 34px var(--serif);margin:0 0 16px">Upcoming events</h1>
+  <p class="meta" style="margin:-8px 0 16px">Including school games for the next two weeks. <a href="{{ url_for('sports.scoreboard') }}" style="text-decoration:underline">All scores &amp; schedules</a></p>
+  {% for e in rows %}
+  <a class="list-item" href="{{ e.url }}" style="flex-direction:column;gap:4px">
+    <span class="kicker" style="color:var(--muted)">{{ e.when }}{% if e.kind == 'game' %} · Game{% endif %}</span><b>{{ e.title }}</b>
+    {% if e.place %}<span class="meta">{{ e.place }}</span>{% endif %}
+  </a>
+  {% else %}<p class="empty">No upcoming events listed yet.</p>{% endfor %}
+</div>
+{% endblock %}

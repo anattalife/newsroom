@@ -1,0 +1,12 @@
+{% macro wx_icon(name, size=40) -%}
+<svg width="{{ size }}" height="{{ size }}" viewBox="0 0 48 48" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="wxi">
+{%- if name in ('sun', 'partly') %}<circle cx="{{ 20 if name == 'partly' else 24 }}" cy="{{ 18 if name == 'partly' else 24 }}" r="{{ 7 if name == 'partly' else 9 }}" stroke="#E0A100" fill="#FFD34D"/>
+  {%- if name == 'sun' %}<path d="M24 5v5M24 38v5M5 24h5M38 24h5M10.5 10.5l3.5 3.5M34 34l3.5 3.5M10.5 37.5l3.5-3.5M34 14l3.5-3.5" stroke="#E0A100"/>{% endif %}{% endif %}
+{%- if name in ('moon', 'partly-night') %}<path d="M{{ 26 if name == 'moon' else 22 }} {{ 10 if name == 'moon' else 7 }}a13 13 0 1 0 14 17a10 10 0 0 1-14-17z" stroke="#6B7A99" fill="#DDE3F0"/>{% endif %}
+{%- if name in ('partly', 'partly-night', 'cloud', 'rain', 'snow', 'storm') %}<path d="M14 36h20a8 8 0 0 0 0-16a11 11 0 0 0-21 3a6.5 6.5 0 0 0 1 13z" stroke="#7D8796" fill="#EEF1F5"/>{% endif %}
+{%- if name == 'rain' %}<path d="M17 41l-2 4M25 41l-2 4M33 41l-2 4" stroke="#1F5FAD"/>{% endif %}
+{%- if name == 'snow' %}<path d="M17 42h.01M25 44h.01M33 42h.01" stroke="#1F5FAD" stroke-width="4"/>{% endif %}
+{%- if name == 'storm' %}<path d="M25 37l-4 7h6l-3 6" stroke="#E0A100"/>{% endif %}
+{%- if name == 'fog' %}<path d="M8 18h32M6 26h36M10 34h28" stroke="#7D8796"/>{% endif %}
+</svg>
+{%- endmacro %}

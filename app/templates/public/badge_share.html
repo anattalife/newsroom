@@ -1,0 +1,22 @@
+{% extends "public/base.html" %}
+{% set tab = 'leaderboard' %}
+{% block title %}@{{ m.username }} earned {{ b.name }} · {{ S.site_name }}{% endblock %}
+{% block og %}<meta property="og:site_name" content="{{ S.site_name }}"><meta property="og:type" content="website">
+<meta property="og:title" content="@{{ m.username }} earned {{ b.name }}{% if b.tier_name %} ({{ b.tier_name }}){% endif %} on {{ S.site_name }}">
+<meta property="og:description" content="{{ ('A secret badge. Hint: ' ~ b.hint ~ ' Can you find it?') if b.secret else (b.description ~ '.') }} Join free and start collecting.">
+<meta property="og:image" content="{{ share_url }}.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">{% endblock %}
+{% block content %}
+<div class="wrap game" style="padding-top:36px;padding-bottom:56px;max-width:720px;text-align:center">
+  <span class="cele-ic tier{{ b.tier if b.tier_name else 3 }}" style="margin:0 auto" aria-hidden="true">{{ b.icon }}</span>
+  <p class="kicker" style="margin:14px 0 0">{{ 'Secret badge' if b.secret else 'Badge' }} · {{ b.rarity|title }}</p>
+  <h1 style="font:800 38px/1.1 var(--serif);margin:4px 0">{{ b.name }}{% if b.tier_name %} <span style="color:var(--muted);font-size:26px">{{ b.tier_name }}</span>{% endif %}</h1>
+  <p class="prose" style="margin:6px auto">{% if b.secret %}A secret badge. The only clue: <i>“{{ b.hint }}”</i> Can you find it?{% else %}{{ b.description }}.{% endif %}</p>
+  <p class="meta">Earned by <a href="{{ url_for('members.profile', username=m.username) }}" style="text-decoration:underline">@{{ m.username }}</a> {{ b.awarded_at|ago }} · {{ 'Only ' ~ b.holders ~ (' person has' if b.holders == 1 else ' people have') ~ ' this' if b.holders <= 10 else b.holders ~ ' members have this' }}</p>
+  <div class="row" style="justify-content:center;margin-top:18px">
+    <a class="btn brand" href="https://www.facebook.com/sharer/sharer.php?u={{ share_url|urlencode }}" target="_blank" rel="noopener">Share on Facebook</a>
+    <a class="btn" href="{{ url_for('members.badges') }}">See the Badge Book</a>
+  </div>
+  <img src="{{ url_for('members.badge_image', username=m.username, slug=b.slug) }}" alt="{{ b.name }} badge card for @{{ m.username }}" style="width:100%;border-radius:12px;margin-top:26px;border:1px solid var(--line)">
+</div>
+{% endblock %}

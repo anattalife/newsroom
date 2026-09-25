@@ -1,0 +1,19 @@
+{% extends "public/base.html" %}
+{% from "public/_game.html" import badge_card with context %}
+{% set tab = 'leaderboard' %}
+{% block title %}Badge Book · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap game" style="padding-top:28px;padding-bottom:56px">
+  <div class="game-head">
+    <div><h1>The Badge Book</h1>
+      <p class="meta">Most badges level up: <span class="bb-tier t1">Bronze</span> <span class="bb-tier t2">Silver</span> <span class="bb-tier t3">Gold</span> <span class="bb-tier t4">Legend</span>. The dashed <b>???</b> ones are secret. Tap one for a hint.</p></div>
+    {% if member %}<div class="bb-count"><b>{{ have }}</b><span>of {{ total }} collected</span></div>
+    {% else %}<a class="btn brand" href="{{ url_for('members.join') }}">Join free and start collecting</a>{% endif %}
+  </div>
+  <nav class="pills game-nav"><a href="{{ url_for('members.leaderboard') }}">Leaderboards</a><a href="{{ url_for('members.crowns_page') }}">👑 Crowns</a><a href="{{ url_for('members.badges') }}" aria-current="page">Badge Book</a></nav>
+  {% for k, label in groups %}{% set list = rows|selectattr('grp', 'equalto', k)|list %}{% if list %}
+  <section class="bb-chapter"><h2 class="h-sec">{{ label.split(' (')[0] }}</h2>
+    <div class="bb-grid">{% for b in list %}{{ badge_card(b, mine=member is not none) }}{% endfor %}</div></section>
+  {% endif %}{% endfor %}
+</div>
+{% endblock %}

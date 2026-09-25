@@ -1,0 +1,21 @@
+{% extends "admin/base.html" %}
+{% set active = 'settings' %}
+{% block title %}Activity log{% endblock %}
+{% block main %}
+<h1>Settings</h1>
+<div class="cols setwrap">
+  {% include "admin/_setnav.html" %}
+  <section class="card grow" style="padding:0;overflow:auto">
+    <table class="list">
+      <thead><tr><th>When</th><th>Who</th><th>What</th><th class="hide-sm">Details</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+      <tr><td style="white-space:nowrap">{{ r.at|localdate }}</td><td>{{ r.user_name or 'System' }}</td>
+        <td>{% if r.target.startswith('story:') %}<a href="{{ url_for('admin.story', sid=r.target[6:]|int) }}">{{ r.action }}</a>{% else %}{{ r.action }}{% endif %}</td>
+        <td class="hide-sm muted">{{ r.detail }}</td></tr>
+      {% else %}<tr><td colspan="4" class="empty">Nothing yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}

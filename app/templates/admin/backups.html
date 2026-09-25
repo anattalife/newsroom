@@ -1,0 +1,34 @@
+{% extends "admin/base.html" %}
+{% set active = 'settings' %}
+{% block title %}Backups and usage{% endblock %}
+{% block main %}
+<h1>Settings</h1>
+<div class="cols setwrap">
+  {% include "admin/_setnav.html" %}
+  <div class="grow" style="display:flex;flex-direction:column;gap:16px">
+    <section class="card form">
+      <h2 style="font-size:20px">Backups</h2>
+      <p class="muted" style="margin:0">A backup is made every night at 3 a.m. Each file holds all stories, settings, sources, uploads and the encryption key, so keep downloaded backups somewhere private. Your server's daily snapshots (in Lightsail) are a second safety net.</p>
+      <form method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn dark" type="submit">Make a backup now</button></form>
+      {% for f in files %}
+      <div class="row"><span><span class="t">{{ f.name }}</span><br><span class="m">{{ (f.stat().st_size / 1048576)|round(1) }} MB</span></span><a class="btn small" href="{{ url_for('admin.backup_download', name=f.name) }}">Download</a></div>
+      {% else %}<p class="muted small" style="margin:0">No backups yet.</p>{% endfor %}
+    </section>
+    <section class="card">
+      <h2 style="font-size:20px;margin-bottom:8px">This month by step</h2>
+      {% set names = {'develop': 'Develop and research', 'write': 'Writing articles', 'factcheck': 'Fact-checks'} %}
+      <table class="list"><thead><tr><th>Step</th><th>Requests</th><th class="hide-sm">Web searches</th><th class="hide-sm">Text read (tokens)</th><th>Estimated cost</th></tr></thead><tbody>
+      {% for u in by_step %}<tr><td>{{ names.get(u.purpose, u.purpose) }}</td><td>{{ u.calls }}</td><td class="hide-sm">{{ u.searches or 0 }}</td><td class="hide-sm">{{ '{:,}'.format(u.tin or 0) }}</td><td>${{ '%.2f'|format(u.cost or 0) }}</td></tr>{% else %}<tr><td colspan="5" class="empty">No AI use this month.</td></tr>{% endfor %}
+      </tbody></table>
+      {% if stories %}<p class="small muted" style="margin:10px 0 0">{{ stories }} stories this month, about ${{ '%.2f'|format((by_step|sum(attribute='cost')) / stories) }} each. Each story's own cost is shown on its page.</p>{% endif %}
+    </section>
+    <section class="card">
+      <h2 style="font-size:20px;margin-bottom:8px">AI usage by month</h2>
+      <table class="list"><thead><tr><th>Month</th><th>AI requests</th><th>Estimated cost</th></tr></thead><tbody>
+      {% for u in usage %}<tr><td>{{ u.month }}</td><td>{{ u.calls }}</td><td>${{ '%.2f'|format(u.cost or 0) }}</td></tr>{% else %}<tr><td colspan="3" class="empty">No AI use yet.</td></tr>{% endfor %}
+      </tbody></table>
+      <p class="small muted" style="margin:10px 0 0">Version {{ VERSION }}</p>
+    </section>
+  </div>
+</div>
+{% endblock %}

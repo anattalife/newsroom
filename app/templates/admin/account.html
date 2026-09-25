@@ -1,0 +1,28 @@
+{% extends "admin/base.html" %}
+{% block title %}Account{% endblock %}
+{% block main %}
+<h1>Your account</h1>
+<form class="card form" method="post" style="max-width:560px">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+  <label class="f">Name<input type="text" name="name" value="{{ user.name }}"></label>
+  <label class="f">Email<input type="email" value="{{ user.email }}" disabled><span class="help">Ask the owner to change your email.</span></label>
+  <label class="f">New password<input type="password" name="new" minlength="10" autocomplete="new-password"><span class="help">Leave blank to keep your current password. Changing it logs you out everywhere else.</span></label>
+  <label class="f">Current password<input type="password" name="current" required autocomplete="current-password"><span class="help">Needed to save any change.</span></label>
+  <div class="btns"><button class="btn dark" type="submit">Save</button></div>
+</form>
+<form class="card form" method="post" action="{{ url_for('admin.staff_profile') }}" style="max-width:560px">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <h2>Public profile</h2>
+  {% if staff %}
+  <p style="margin:0">You're <a href="{{ url_for('members.profile', username=staff.username) }}" target="_blank" rel="noopener"><b>@{{ staff.username }}</b></a> on the public site, with a Staff badge. While you're logged in here, you comment and upvote as @{{ staff.username }}.</p>
+  <label class="f">Display name<input type="text" name="display_name" value="{{ staff.display_name }}" maxlength="60"></label>
+  <label class="f">Short bio<textarea name="bio" maxlength="600">{{ staff.bio }}</textarea></label>
+  <div class="btns"><button class="btn" type="submit">Save public profile</button></div>
+  {% else %}
+  <p style="margin:0" class="muted">Create a public profile to join the conversation in the comments with a Staff badge.</p>
+  <label class="f">Username<input type="text" name="username" pattern="[A-Za-z0-9_]{3,20}" required placeholder="e.g. {{ (user.name or 'editor').split()[0]|lower }}_news"><span class="help">3 to 20 letters, numbers or underscores. Shown as @username.</span></label>
+  <div class="btns"><button class="btn" type="submit">Create my public profile</button></div>
+  {% endif %}
+</form>
+{% endblock %}

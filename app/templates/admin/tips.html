@@ -1,0 +1,52 @@
+{% extends "admin/base.html" %}
+{% set active = 'src' ~ src.id %}
+{% block title %}Reader tips{% endblock %}
+{% block main %}
+<div class="head">
+  <div><div class="eyebrow">Approval page</div><h1>Reader tips</h1>
+  <div class="sub">From the tip form on your website and app. Tips are unverified and never publish on their own.</div></div>
+  <a class="btn" href="{{ url_for('public.tip') }}" target="_blank" rel="noopener">Open the tip form ↗</a>
+</div>
+<nav class="tabs" aria-label="Filter">
+  {% for k, l in [('new','New'),('used','Developed'),('dismissed','Dismissed')] %}<a href="?tab={{ k }}" class="{{ 'on' if tab == k }}" {% if tab == k %}aria-current="page"{% endif %}>{{ l }} ({{ counts[k] }})</a>{% endfor %}
+</nav>
+{% if not rows and not sel %}<p class="empty">{{ 'No new tips.' if tab == 'new' else 'Nothing here.' }}</p>{% else %}
+<div class="cols tipwrap">
+  <div class="tiplist">
+    {% for t in rows %}
+    <a class="tipc {{ 'on' if sel and sel.id == t.id }}" href="?tab={{ tab }}&id={{ t.id }}" {% if sel and sel.id == t.id %}aria-current="true"{% endif %}>
+      <span class="small muted" style="display:flex;justify-content:space-between"><span>{{ t.created_at|ago }}</span><span>{% if t.photos %}{{ t.photos|length }} photo{{ 's' if t.photos|length != 1 }}{% endif %}</span></span>
+      <b style="font-size:15px">{{ t.text[:90] }}{{ '…' if t.text|length > 90 }}</b>{% if t.member_id %}<span class="small" style="color:#4B2C8A">{{ t.name }}</span>{% endif %}
+      {% if t.location %}<span class="small" style="color:var(--ink2)">{{ t.location }}</span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  {% if sel %}
+  <section class="card grow" style="display:flex;flex-direction:column;gap:16px">
+    <div class="btns"><span class="pill tip">Unverified tip</span><span class="small muted">{{ sel.created_at|localdate }}</span></div>
+    <p style="margin:0;font-size:16px;line-height:1.6;white-space:pre-line">{{ sel.text }}</p>
+    {% if sel.photos %}<div class="photos">{% for p in sel.photos %}<a href="{{ url_for('admin.private_upload', name=p) }}" target="_blank" rel="noopener"><img src="{{ url_for('admin.private_upload', name=p) }}" alt="Reader photo {{ loop.index }}"></a>{% endfor %}</div>{% endif %}
+    <div class="two small">
+      <div><span class="muted">Location</span><br>{{ sel.location or 'Not given' }}</div>
+      <div><span class="muted">Sender (private{% if sel.member_id %} unless they chose credit{% endif %})</span><br>{% if sel.member_id %}<span class="pill member">Member</span> <a href="{{ url_for('admin.member', mid=sel.member_id) }}">{{ sel.name }}</a> · {{ 'wants credit' if sel.credit else 'asked not to be named' }}{% elif sel.anonymous %}Anonymous{% else %}{{ sel.name or '—' }}{% if sel.contact %} · {{ sel.contact }}{% endif %}{% endif %}</div>
+    </div>
+    <form method="post" action="{{ url_for('admin.tip_action', tid=sel.id, tab=tab) }}" class="btns" style="border-top:1px solid var(--line2);padding-top:16px">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      {% if sel.status == 'new' %}
+      {% if can('editor') %}<button class="btn dark" type="submit" name="action" value="quick" data-working="Writing…">Write it</button><button class="btn" type="submit" name="action" value="develop">Add details first</button>{% endif %}
+      {% if not sel.anonymous and '@' in (sel.contact or '') %}<a class="btn" href="mailto:{{ sel.contact }}?subject={{ ('About your tip to ' ~ S.site_name)|urlencode }}">Reply to sender</a>{% endif %}
+      <button class="btn" type="submit" name="action" value="dismiss">Dismiss</button>
+      <span style="flex:1"></span>
+      <button class="btn link" type="submit" name="action" value="block" style="color:var(--red)" data-confirm="Block this sender? Their future tips are discarded without telling them.">Block sender</button>
+      {% elif sel.status == 'used' and sel.story_id %}
+      <a class="btn dark" href="{{ url_for('admin.story', sid=sel.story_id) }}">Open the story</a>
+      {% else %}
+      <button class="btn" type="submit" name="action" value="restore">Move back to New</button>
+      {% endif %}
+    </form>
+    {% if sel.status == 'new' %}<span class="small muted">“Write it” gives you a finished draft to check. “Add details first” if you know more than the tip says.</span>{% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

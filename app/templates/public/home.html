@@ -1,0 +1,79 @@
+{% extends "public/base.html" %}
+{% from "public/_macros.html" import picture, tipform with context %}
+{% from "public/_wx.html" import wx_icon with context %}
+{% from "public/_sports.html" import strip_chip with context %}
+{% set tab = 'news' %}
+{% block content %}
+{% if wx and wx.ready %}
+<div class="wxstrip"><div class="wrap"><a href="{{ url_for('public.weather_page') }}">{{ wx_icon(wx.current.icon, 28) }}<span>{{ wx.loc.name }}</span><b>{{ wx.current.temp if wx.current.temp is not none else '–' }}°</b><span>{{ wx.current.text }}</span>{% if wx.high is not none or wx.low is not none %}<span class="meta">{% if wx.high is not none %}H {{ wx.high }}°{% endif %}{% if wx.high is not none and wx.low is not none %} · {% endif %}{% if wx.low is not none %}L {{ wx.low }}°{% endif %}</span>{% endif %}{% if wx.alerts %}<span class="meta" style="color:#7C1A14;font-weight:600">{{ wx.alerts|length }} alert{{ 's' if wx.alerts|length != 1 }}</span>{% endif %}<span style="margin-left:auto;color:var(--blue);font-weight:600">Full forecast</span></a></div></div>
+{% endif %}
+{% if scores %}
+<div class="scorestrip" aria-label="Scores"><div class="wrap">{% for gm in scores %}{{ strip_chip(gm) }}{% endfor %}<a class="sc-all" href="{{ url_for('sports.scoreboard') }}">All scores →</a></div></div>
+{% endif %}
+<div class="wrap">
+{% if not top %}
+  <div class="page"><h1>Welcome to {{ S.site_name }}</h1><p class="prose">Local news for {{ S.town }} is on its way. Check back soon{% if S.tips_enabled %}, or <a href="{{ url_for('public.tip') }}" style="color:var(--blue);text-decoration:underline">send us a tip</a>{% endif %}.</p></div>
+{% else %}
+  <div class="hero">
+    <a class="lead" href="{{ url_for('public.article', slug=top.slug) }}">
+      {{ picture(top, big=True) }}
+      <span class="kicker">{{ top.category }}</span>
+      <h2>{{ top.headline }}</h2>
+      {% if top.summary %}<p class="dek">{{ top.summary }}</p>{% endif %}
+      <span class="meta">{{ top.published_at|ago }}{% if top.upvotes %} · ▲ {{ top.upvotes }}{% endif %}{% if top.comment_count %} · {{ top.comment_count }} comment{{ 's' if top.comment_count != 1 }}{% endif %}</span>
+    </a>
+    <aside class="latest" aria-label="Latest">
+      <h2>Latest</h2>
+      {% for s in latest %}
+      <a class="li" href="{{ url_for('public.article', slug=s.slug) }}"><span class="meta">{{ s.published_at|ago }} · {{ s.category }}{% if s.comment_count %} · {{ s.comment_count }} 💬{% endif %}</span><b>{{ s.headline }}</b></a>
+      {% else %}<p class="meta">More stories soon.</p>{% endfor %}
+    </aside>
+  </div>
+  {% if national or specials %}
+  <div class="bottom" style="padding-bottom:24px">
+    {% if national %}
+    <section class="box nwbox" aria-labelledby="nw-h" style="grid-column:span {{ 2 if specials else 3 }}">
+      <h2 class="h-sec" id="nw-h">National &amp; World</h2>
+      {% for s in national %}<a class="ev" href="{{ url_for('public.article', slug=s.slug) }}"><span class="meta">{{ s.scope|title }} · {{ s.published_at|ago }}{% if s.wire %} · {{ s.byline }}{% endif %}</span><b>{{ s.headline }}</b></a>{% endfor %}
+      <a href="{{ url_for('public.national_world') }}" style="color:var(--blue);font-weight:600;font-size:14px">More national and world news</a>
+    </section>
+    {% endif %}
+    {% if specials %}
+    <section class="box" aria-labelledby="sp-h" {% if not national %}style="grid-column:span 3"{% endif %}>
+      <h2 class="h-sec" id="sp-h">Today's specials</h2>
+      {% for sp in specials %}<a class="ev" href="{{ url_for('public.specials_page') }}#sp{{ sp.id }}"><b>{{ sp.title }}{% if sp.price %} · {{ sp.price }}{% endif %}</b><span class="meta">{{ sp.partner }}</span></a>{% endfor %}
+      <a href="{{ url_for('public.specials_page') }}" style="color:var(--blue);font-weight:600;font-size:14px">All of today's specials</a>
+    </section>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% if more %}
+  <section class="cards" aria-label="More stories">
+    {% for s in more[:3] %}
+    <a class="card3" href="{{ url_for('public.article', slug=s.slug) }}">{{ picture(s) }}<span class="kicker">{{ s.category }}</span><b>{{ s.headline }}</b><p>{{ s.summary }}</p></a>
+    {% endfor %}
+  </section>
+  {% endif %}
+{% endif %}
+  <div class="bottom">
+    {% if S.tips_enabled and S.home_show_tipbox %}
+    <section class="tipbox" id="tip" aria-labelledby="tip-h">
+      <h2 id="tip-h">See something newsworthy?</h2>
+      <p style="margin:0;color:var(--ink2)"><a href="{{ url_for('members.submit_choose') }}" style="color:var(--blue);text-decoration:underline">Write it up yourself or send us the facts</a> and earn points and badges, or send a quick tip below.</p>
+      <p style="margin:0;color:var(--ink2)">{{ S.tips_intro }}</p>
+      {{ tipform(form_token, compact=True) }}
+      <a href="{{ url_for('public.tip') }}" class="meta" style="text-decoration:underline">Want to leave your name or stay anonymous? Use the full tip form.</a>
+    </section>
+    {% endif %}
+    {% if events or S.home_show_events %}
+    <section class="box" aria-labelledby="ev-h">
+      <h2 class="h-sec" id="ev-h">Upcoming events</h2>
+      {% for e in events %}
+      <a class="ev" href="{{ e.url }}"><span class="kicker" style="color:var(--muted)">{{ e.when }}{% if e.kind == 'game' %} · Game{% endif %}</span><b>{{ e.title }}</b>{% if e.place %}<span class="meta">{{ e.place }}</span>{% endif %}</a>
+      {% else %}<p class="meta" style="margin:0">No upcoming events listed yet.</p>{% endfor %}
+      <a href="{{ url_for('public.events') }}" style="color:var(--blue);font-weight:600;font-size:14px">All events</a>
+    </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,90 @@
+{% extends "public/base.html" %}
+{% from "public/_wx.html" import wx_icon with context %}
+{% set cat_name = 'Weather' %}
+{% block title %}Weather for {{ loc.name }} · {{ S.site_name }}{% endblock %}
+{% block description %}Current conditions, hourly and 7-day forecast, alerts and radar for {{ loc.name }}.{% endblock %}
+{% block content %}
+<div class="wrap wx">
+  <div class="wx-head">
+    <h1>Weather for {{ loc.name }}</h1>
+    {% if locs|length > 1 %}
+    <nav class="wx-locs" aria-label="Locations">{% for l in locs %}<a href="{{ url_for('public.weather_page', loc=l.slug) }}" {% if l.slug == loc.slug %}aria-current="page"{% endif %}>{{ l.name }}</a>{% endfor %}</nav>
+    {% endif %}
+  </div>
+
+  {% if not w.ready %}
+  <p class="empty">The forecast is loading. Check back in a few minutes.</p>
+  {% else %}
+
+  {% if c.weather_show_alerts and w.alerts %}
+  <section aria-label="Weather alerts" class="wx-alerts">
+    {% for a in w.alerts %}
+    <details class="wx-alert {{ 'severe' if a.severity in ('Severe', 'Extreme') }}" {{ 'open' if loop.first }}>
+      <summary><b>{{ a.event }}</b>{% if a.expires or a.ends %} <span>until {{ (a.ends or a.expires)|localdate }}</span>{% endif %}</summary>
+      {% if a.headline %}<p><b>{{ a.headline }}</b></p>{% endif %}
+      <p style="white-space:pre-line">{{ a.description }}</p>
+      {% if a.instruction %}<p style="white-space:pre-line"><b>What to do:</b> {{ a.instruction }}</p>{% endif %}
+    </details>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <div class="wx-grid">
+    {% if c.weather_show_current %}
+    <section class="wx-card wx-now" aria-label="Current conditions">
+      <div class="wx-now-main">{{ wx_icon(w.current.icon, 84) }}
+        <div><div class="wx-big">{{ w.current.temp if w.current.temp is not none else '–' }}°{{ w.unit }}</div><div class="wx-cond">{{ w.current.text }}</div></div>
+      </div>
+      <dl class="wx-facts">
+        {% if w.high is not none %}<div><dt>High</dt><dd>{{ w.high }}°</dd></div>{% endif %}
+        {% if w.low is not none %}<div><dt>Low</dt><dd>{{ w.low }}°</dd></div>{% endif %}
+        {% if w.current.feels is not none %}<div><dt>Feels like</dt><dd>{{ w.current.feels }}°</dd></div>{% endif %}
+        {% if w.current.wind %}<div><dt>Wind</dt><dd>{{ w.current.wind }}</dd></div>{% endif %}
+        {% if w.current.humidity is not none %}<div><dt>Humidity</dt><dd>{{ w.current.humidity }}%</dd></div>{% endif %}
+      </dl>
+      <p class="meta" style="margin:0">{% if w.current.at %}Observed {{ w.current.at|ago }}{% else %}From the forecast{% endif %}{% if w.place %} near {{ w.place }}{% endif %}.</p>
+    </section>
+    {% endif %}
+    {% if c.weather_show_radar and w.radar %}
+    <section class="wx-card" aria-label="Radar">
+      <h2 class="h-sec">Radar</h2>
+      <a href="https://radar.weather.gov/station/{{ w.radar|lower }}/standard" target="_blank" rel="noopener"><img class="wx-radar" src="https://radar.weather.gov/ridge/standard/{{ w.radar }}_loop.gif" alt="Animated radar loop from station {{ w.radar }}" loading="lazy"></a>
+      <a class="meta" href="https://radar.weather.gov/station/{{ w.radar|lower }}/standard" target="_blank" rel="noopener" style="text-decoration:underline">Open the interactive radar</a>
+    </section>
+    {% endif %}
+  </div>
+
+  {% if c.weather_show_hourly and w.hourly %}
+  <section class="wx-card" aria-label="Next 24 hours">
+    <h2 class="h-sec">Next 24 hours</h2>
+    <div class="wx-hours" tabindex="0">
+      {% for h in w.hourly %}
+      <div class="wx-hour"><span class="meta">{{ 'Now' if loop.first else h.time }}</span>{{ wx_icon(h.icon, 32) }}<b>{{ h.temp if h.temp is not none else '–' }}°</b><span class="wx-rain">{% if h.rain %}{{ h.rain }}%{% endif %}</span><span class="sr" style="position:absolute;left:-999px">{{ h.text }}</span></div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if c.weather_show_daily and w.days %}
+  <section class="wx-card" aria-label="7-day forecast">
+    <h2 class="h-sec">7-day forecast</h2>
+    {% for d in w.days %}{% set p = d.day or d.night %}
+    <details class="wx-day">
+      <summary>
+        <span class="wx-dname">{{ p.name }}</span>{{ wx_icon(p.icon, 34) }}
+        <span class="wx-dtext">{{ p.text }}{% if p.rain %} · <span class="wx-rain">{{ p.rain }}% rain</span>{% endif %}</span>
+        <span class="wx-temps">{% if d.day %}<b>{{ d.day.temp }}°</b>{% endif %}{% if d.night %} <span class="meta">{{ d.night.temp }}°</span>{% endif %}</span>
+      </summary>
+      {% if d.day %}<p><b>{{ d.day.name }}:</b> {{ d.day.detail }}</p>{% endif %}
+      {% if d.night %}<p><b>{{ d.night.name }}:</b> {{ d.night.detail }}</p>{% endif %}
+    </details>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if 'Weather' in categories %}<p><a class="btn" href="{{ category_url('Weather') }}">Weather news</a></p>{% endif %}
+  {% if w.stale %}<p class="meta" style="color:#7C1A14">The weather service hasn't responded for a while, so this forecast may be out of date.</p>{% endif %}
+  <p class="meta">Source: <a href="https://www.weather.gov" style="text-decoration:underline" rel="noopener">National Weather Service</a>. Updated {{ w.updated_at|ago }}.</p>
+  {% endif %}
+</div>
+{% endblock %}

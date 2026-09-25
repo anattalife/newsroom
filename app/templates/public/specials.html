@@ -1,0 +1,14 @@
+{% extends "public/base.html" %}
+{% set tab = 'specials' %}
+{% block title %}Today's specials · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap" style="padding-top:32px;padding-bottom:48px;max-width:960px">
+  <h1 style="font:700 34px var(--serif);margin:0 0 6px">Today's specials</h1>
+  <p class="meta" style="margin:0 0 18px">Posted by our Community Partners. Run a restaurant, café or church supper? <a href="{{ url_for('members.partners') }}" style="text-decoration:underline">Become a partner</a>, free, and post yours.</p>
+  {% for sp in rows %}
+  <article class="special big" id="sp{{ sp.id }}">{% if sp.image %}<img src="{{ media_url(sp.image) }}" alt="">{% endif %}
+    <div><span class="kicker">{{ sp.partner }}</span><b>{{ sp.title }}{% if sp.price %} · {{ sp.price }}{% endif %}</b>{% if sp.description %}<p>{{ sp.description }}</p>{% endif %}
+    <span class="meta">{{ sp.address }}{% if sp.website %}{% if sp.address %} · {% endif %}<a href="{{ sp.website }}" rel="noopener nofollow" target="_blank" style="text-decoration:underline">Website</a>{% endif %}</span></div></article>
+  {% else %}<p class="empty">No specials posted yet today.</p>{% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{# Pieces shared by the Badge Book, profiles and the share page. #}
+{% macro badge_card(b, mine=True) -%}
+{% set hidden = b.secret and not b.tier %}
+<div class="bb {{ 'secret' if hidden else '' }} {{ 'got' if b.tier else ('locked' if not hidden else '') }}" {% if hidden %}tabindex="0" data-hint{% endif %}>
+  {% if b.rarity != 'common' %}<span class="bb-rar {{ b.rarity }}">{{ b.rarity|title }}</span>{% endif %}
+  <span class="bb-ic {{ ('tier' ~ b.tier) if b.tier and b.tiered else ('tier3' if b.tier else '') }}" aria-hidden="true">{{ '?' if hidden else b.icon }}</span>
+  <b>{{ '???' if hidden else b.name }}</b>
+  {% if hidden %}
+    <span class="bb-hint">{{ b.hint or 'Nobody knows… yet.' }}</span>
+    <span class="bb-sub">{{ 'Undiscovered' if not b.holders else ('Found by ' ~ b.holders ~ (' person' if b.holders == 1 else ' people')) }}</span>
+  {% else %}
+    {% if b.tier_name %}<span class="bb-tier t{{ b.tier }}">{{ b.tier_name }}</span>{% elif b.tier %}<span class="bb-tier t3">Earned</span>{% endif %}
+    <span class="bb-sub">{{ b.description }}</span>
+    {% if mine and b.rule != 'manual' and not b.max %}
+      <span class="bb-prog"><span>{{ b.value }} of {{ b.next }}{% if b.next_name %} to {{ b.next_name }}{% endif %}</span><span class="bar"><i style="width:{{ b.pct }}%"></i></span></span>
+    {% elif b.max and b.tiered %}<span class="bb-sub"><b>Maxed out!</b></span>{% endif %}
+    <span class="bb-sub">{{ 'Nobody has this yet' if not b.holders else ('Only ' ~ b.holders ~ ' ' ~ ('person has' if b.holders == 1 else 'people have') ~ ' this' if b.holders <= 10 else b.holders ~ ' members have this') }}</span>
+  {% endif %}
+</div>
+{%- endmacro %}

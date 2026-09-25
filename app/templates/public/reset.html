@@ -1,0 +1,11 @@
+{% extends "public/base.html" %}
+{% block title %}Choose a new password · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap"><div class="page narrow">
+  <h1>Choose a new password</h1>
+  <form method="post" class="stack"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    {% if error %}<div class="err" role="alert">{{ error }}</div>{% endif %}
+    <label class="f">New password<input type="password" name="password" required minlength="10" autocomplete="new-password"></label>
+    <div><button class="btn solid" type="submit">Save and log in</button></div></form>
+</div></div>
+{% endblock %}

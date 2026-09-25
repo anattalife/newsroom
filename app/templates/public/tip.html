@@ -1,0 +1,12 @@
+{% extends "public/base.html" %}
+{% from "public/_macros.html" import tipform with context %}
+{% set tab = 'tip' %}
+{% block title %}Send a tip · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap"><div class="page">
+  <h1>Send a tip</h1>
+  <p style="color:var(--ink2)">{{ S.tips_intro }} Tips are reviewed by an editor before anything is published.</p>
+  {% if member %}<p class="meta">Want to write the whole story yourself, or give us more detail? <a href="{{ url_for('members.submit_choose') }}" style="text-decoration:underline">Use Submit</a>.</p>{% endif %}
+  {{ tipform(form_token, f=f, error=error) }}
+</div></div>
+{% endblock %}

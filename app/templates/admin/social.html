@@ -1,0 +1,40 @@
+{% extends "admin/base.html" %}
+{% set active = 'social' %}
+{% block title %}Social accounts{% endblock %}
+{% block main %}
+<h1>Social accounts</h1>
+<div class="cols setwrap">
+{% include "admin/_setnav.html" %}
+<div class="grow" style="display:flex;flex-direction:column;gap:16px">
+  <p class="muted" style="margin:0">Connect each account once. When a story publishes, it's posted to the platforms ticked on its page. Each platform needs a free developer account; the step-by-step guide is in <b>SOCIAL-SETUP.md</b> in your newsroom's files.</p>
+  {% if not site_url %}<div class="notice"><h2>Add your website address first</h2><p style="margin:0">Posts link to your stories, so the platforms need your site's address. <a href="{{ url_for('admin.settings_section', section='publication') }}">Set it in Settings → Publication</a>.</p></div>{% endif %}
+  {% for key, label in platforms %}
+  <form class="card form" method="post" id="{{ key }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="platform" value="{{ key }}">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font-size:19px">{{ label }}</h2><span class="pill {{ 'ok' if connected[key] }}">{{ 'Connected' if connected[key] else 'Not connected' }}</span></div>
+    <div class="two">
+    {% for fk, flabel, secret, help in fields[key] %}
+      {% if secret %}
+      <label class="f">{{ flabel }}<input type="password" name="{{ fk }}" autocomplete="off" placeholder="{{ 'Saved. Leave blank to keep it' if vals[fk] else '' }}">{% if help %}<span class="help">{{ help }}</span>{% endif %}
+        {% if vals[fk] %}<span class="check small" style="font-weight:400"><input type="checkbox" name="{{ fk }}__remove"> Remove</span>{% endif %}</label>
+      {% else %}
+      <label class="f">{{ flabel }}<input type="text" name="{{ fk }}" value="{{ vals[fk] or ('https://bsky.social' if fk == 'bsky_service' else '') }}">{% if help %}<span class="help">{{ help }}</span>{% endif %}</label>
+      {% endif %}
+    {% endfor %}
+    </div>
+    <div class="btns"><button class="btn dark">Save</button><button class="btn" type="button" data-test-social="{{ key }}" data-url="{{ url_for('admin.social_test') }}">Test</button></div>
+    <div class="test-out" role="status" hidden></div>
+  </form>
+  {% endfor %}
+  <form class="card form" method="post" id="_defaults">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="platform" value="_defaults">
+    <h2 style="font-size:19px">Defaults for stories that publish automatically</h2>
+    <p class="small muted" style="margin:0">Stories you publish yourself use what you tick on their page. Stories published automatically (for example weather alerts) and trusted members' articles use these. Wire stories are never shared automatically.</p>
+    <div style="overflow:auto"><table class="list"><thead><tr><th>Category</th>{% for k, l in platforms %}<th>{{ l }}</th>{% endfor %}</tr></thead><tbody>
+    {% for c in categories %}<tr><td>{{ c }}</td>{% for k, l in platforms %}<td><input type="checkbox" name="d|{{ c }}|{{ k }}" aria-label="{{ c }} to {{ l }}" {{ 'checked' if k in defaults.get(c, []) }}></td>{% endfor %}</tr>{% endfor %}
+    </tbody></table></div>
+    <div class="btns"><button class="btn dark">Save defaults</button></div>
+  </form>
+</div>
+</div>
+{% endblock %}

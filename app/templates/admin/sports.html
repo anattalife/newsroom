@@ -1,0 +1,62 @@
+{% extends "admin/base.html" %}
+{% set active = 'sports' %}
+{% block title %}Sports{% endblock %}
+{% block main %}
+<div class="head"><div><h1>Sports</h1><div class="sub">Schedules come from pasting. Scores come from members and appear right away, credited to them. Undo anything that's wrong, and lock a game once it's checked.</div></div>
+<div class="btns"><a class="btn dark" href="{{ url_for('admin.sports_import') }}">Paste a schedule</a><a class="btn" href="{{ url_for('sports.scoreboard') }}" target="_blank" rel="noopener">Scoreboard ↗</a></div></div>
+<nav class="tabs">{% for k, l in tabs %}<a href="?tab={{ k }}" class="{{ 'on' if tab == k }}">{{ l }}</a>{% endfor %}</nav>
+{% macro act(i, pairs) %}<form method="post" class="btns"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ i }}">{% for a, l in pairs %}<button class="btn small" name="action" value="{{ a }}" {% if a.startswith('delete') %}data-confirm="Remove this for good, with all its games?"{% endif %}>{{ l }}</button>{% endfor %}</form>{% endmacro %}
+
+{% if tab == 'changes' %}
+<div class="card" style="padding:0;overflow:auto"><table class="list"><thead><tr><th>Game</th><th>Score</th><th class="hide-sm">From</th><th></th></tr></thead><tbody>
+{% for r in rows %}<tr><td><a href="{{ url_for('admin.sports_game', gid=r.id) }}"><b>{{ r.matchup }}</b></a><br><span class="small muted">{{ r.team }} · {{ r.day_label }}</span></td>
+<td><b>{{ r.our_score if r.our_score is not none else '–' }}–{{ r.their_score if r.their_score is not none else '–' }}</b> <span class="small muted">{{ r.status_label }}{% if r.detail %} · {{ r.detail }}{% endif %}</span>{% if r.locked %}<br><span class="small">🔒 Locked</span>{% endif %}</td>
+<td class="hide-sm">@{{ r.reporter }} · {{ r.reported_at|ago }}<br><span class="small muted">{{ r.confirms }} confirmed{% if r.changes > 1 %} · changed {{ r.changes }} times{% endif %}</span></td>
+<td>{{ act(r.id, [('revert','Undo last change'), ('unlock' if r.locked else 'lock', 'Unlock' if r.locked else 'Lock')]) }}</td></tr>
+{% else %}<tr><td colspan="4" class="empty">No scores from members yet. They appear here as they come in.</td></tr>{% endfor %}</tbody></table></div>
+
+{% elif tab == 'schools' %}
+<form method="post" class="card form" style="max-width:760px">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <h2>Add a school</h2>
+  <div class="grid2"><label class="f">Full name<input type="text" name="name" required maxlength="120" placeholder="Hillsdale High School"></label>
+  <label class="f">Short name<input type="text" name="short" maxlength="40" placeholder="Hillsdale"></label>
+  <label class="f">Mascot<input type="text" name="mascot" maxlength="60" placeholder="Hornets"></label>
+  <label class="f">Town<input type="text" name="town" maxlength="80"></label>
+  <label class="f">Kind<select name="level">{% for l in levels %}<option>{{ l }}</option>{% endfor %}</select></label>
+  <label class="f">School color<input type="color" name="color" value="#1B2433"></label></div>
+  <div class="btns"><button class="btn dark" name="action" value="add_school">Add school</button></div>
+  <p class="small muted" style="margin:0">Teams are made automatically when you paste a schedule.</p>
+</form>
+{% for s in schools %}<details class="card"><summary style="display:flex;gap:10px;align-items:center;cursor:pointer"><span style="width:14px;height:14px;border-radius:4px;background:{{ s.color }};flex:none"></span><b>{{ s.name }}</b><span class="small muted">{{ s.level }} · {{ s.teams|length }} team{{ 's' if s.teams|length != 1 }}</span><a class="small" href="{{ url_for('sports.school_page', slug=s.slug) }}" target="_blank" rel="noopener" style="margin-left:auto">View ↗</a></summary>
+  {% for t in s.teams %}<div class="row"><span><a href="{{ url_for('sports.team_page', slug=t.slug) }}" target="_blank" rel="noopener">{{ t.label }}</a> <span class="small muted">{{ t.games }} games · {{ t.record }}{% if not t.active %} · hidden{% endif %}</span></span>
+    {{ act(t.id, [('show_team' if not t.active else 'hide_team', 'Show' if not t.active else 'Hide'), ('delete_team', 'Remove')]) }}</div>
+    <details style="margin:0 0 8px 4px"><summary class="small" style="cursor:pointer">“Good to know” box{% if t.info %} · has info{% endif %}{% if t.info_locked %} · 🔒 newsroom only{% endif %}</summary>
+      <form method="post" class="form" style="gap:8px;margin-top:8px"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ t.id }}">
+        <textarea name="info" rows="4" aria-label="Good to know for {{ t.label }}">{{ t.info }}</textarea>
+        <label class="check"><input type="checkbox" name="info_locked" {{ 'checked' if t.info_locked }}> Only the newsroom can edit this box</label>
+        <div class="btns"><button class="btn small dark" name="action" value="team_info">Save</button></div></form></details>{% endfor %}
+  <form method="post" class="form" style="margin-top:12px"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ s.id }}">
+    <div class="grid2"><label class="f">Full name<input type="text" name="name" value="{{ s.name }}"></label><label class="f">Short name<input type="text" name="short" value="{{ s.short }}"></label>
+    <label class="f">Mascot<input type="text" name="mascot" value="{{ s.mascot }}"></label><label class="f">Town<input type="text" name="town" value="{{ s.town }}"></label>
+    <label class="f">Kind<select name="level">{% for l in levels %}<option {{ 'selected' if s.level == l }}>{{ l }}</option>{% endfor %}</select></label><label class="f">School color<input type="color" name="color" value="{{ s.color }}"></label></div>
+    <div class="btns"><button class="btn dark" name="action" value="edit_school">Save</button><button class="btn" name="action" value="delete_school" data-confirm="Remove {{ s.name }} and all its games for good?">Remove school</button></div></form>
+</details>{% else %}<p class="empty">No schools yet. Add one above, or just paste a schedule and add the school there.</p>{% endfor %}
+
+{% elif tab == 'subcats' %}
+<form method="post" class="card form" style="max-width:760px">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <h2>Sports story subcategories</h2>
+  <p class="small muted" style="margin:0">Sports stories can go in a subcategory. The Sports page shows every story, with a button for each subcategory that shows just those. Pick a story's subcategory in the story editor, under Category.</p>
+  <div class="chips" data-name="subcats">{% for x in subcats %}<span class="chip">{{ x }}<input type="hidden" name="subcats" value="{{ x }}"><button type="button" aria-label="Remove {{ x }}">×</button></span>{% endfor %}<input type="text" name="subcats_new" aria-label="Add a subcategory" placeholder="Add…"></div>
+  {% if subcats %}<p class="small muted" style="margin:0">Stories in each: {% for x in subcats %}{{ x }} ({{ counts.get(x, 0) }}){{ ', ' if not loop.last }}{% endfor %}. Removing a subcategory doesn't delete stories; they stay in Sports.</p>{% endif %}
+  <div class="btns"><button class="btn dark" name="action" value="save_subcats">Save</button><a class="btn" href="{{ category_url('Sports') }}" target="_blank" rel="noopener">Sports page ↗</a></div>
+</form>
+{% else %}
+<form class="btns" method="get"><input type="hidden" name="tab" value="games"><select name="school" data-autosubmit style="width:auto"><option value="">All schools</option>{% for s in schools %}<option value="{{ s.id }}" {{ 'selected' if school == s.id }}>{{ s.name }}</option>{% endfor %}</select><noscript><button class="btn">Show</button></noscript></form>
+<div class="card" style="padding:0;overflow:auto"><table class="list"><thead><tr><th>When</th><th>Game</th><th>Score</th><th class="hide-sm">Added by</th></tr></thead><tbody>
+{% for r in rows %}<tr><td>{{ r.day_label }}<br><span class="small muted">{{ r.time_label }}</span></td><td><a href="{{ url_for('admin.sports_game', gid=r.id) }}"><b>{{ r.matchup }}</b></a><br><span class="small muted">{{ r.sport_label }}</span></td>
+<td>{% if r.has_score %}<b>{{ r.our_score }}–{{ r.their_score }}</b> {% endif %}<span class="small muted">{{ r.status_label }}</span>{% if r.locked %} 🔒{% endif %}</td><td class="hide-sm small muted">{{ r.source }}{% if r.reporter %} · score @{{ r.reporter }}{% endif %}</td></tr>
+{% else %}<tr><td colspan="4" class="empty">No games yet. <a href="{{ url_for('admin.sports_import') }}">Paste a schedule</a>.</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% endblock %}

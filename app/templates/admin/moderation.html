@@ -1,0 +1,42 @@
+{% extends "admin/base.html" %}
+{% set active = 'moderation' %}
+{% block title %}Comments and flags{% endblock %}
+{% block main %}
+<div class="head"><div><h1>Comments and flags</h1><div class="sub">Held comments wait here for you. Flags from members are listed by how many people flagged.</div></div></div>
+<nav class="tabs">{% for k, l in [('held','Waiting comments (' ~ held|length ~ ')'),('flags','Flags (' ~ flags|length ~ ')'),('recent','Recent comments')] %}<a href="?tab={{ k }}" class="{{ 'on' if tab == k }}">{{ l }}</a>{% endfor %}</nav>
+{% macro cform(c, actions) %}<form method="post" class="btns"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ c.id }}">
+  {% for a, l in actions %}<button class="btn small {{ 'go' if a == 'approve' }} {{ 'danger' if a == 'delete' }}" name="action" value="{{ a }}">{{ l }}</button>{% endfor %}
+  <a class="btn small link" href="{{ url_for('public.article', slug=c.slug) }}#c{{ c.id }}" target="_blank" rel="noopener">View on the story</a></form>{% endmacro %}
+{% if tab == 'held' %}
+<div class="card">
+{% for c in held %}
+<div class="cmt"><span class="small muted"><b>@{{ c.username }}</b> ({{ c.points }} points) on <b>{{ c.headline }}</b> · {{ c.created_at|ago }} · <span style="color:var(--amber)">{{ c.hold_reason }}</span></span>
+  {{ c.body|plain }}{{ cform(c, [('approve','Approve'),('hide','Hide'),('delete','Delete')]) }}</div>
+{% else %}<p class="empty">No comments waiting.</p>{% endfor %}
+</div>
+{% elif tab == 'flags' %}
+<div class="card">
+{% for f in flags %}
+<div class="cmt"><span class="small muted"><b>{{ f.n }} flag{{ 's' if f.n != 1 }}</b> (weight {{ f.weight }}) · {{ f.reasons|replace('facts','wrong facts')|replace(',', ', ') }} · first {{ f.first_at|ago }}</span>
+  {% if f.notes %}<span class="small">Notes: {{ f.notes }}</span>{% endif %}
+  {% if f.c %}<span class="small muted">Comment by <b>@{{ f.c.username }}</b> on <b>{{ f.c.headline }}</b> ({{ f.c.status }})</span>{{ f.c.body|plain }}
+    {{ cform(f.c, [('approve','Keep it'),('hide','Hide'),('delete','Delete')]) }}
+  {% elif f.s %}<span>Story: <a href="{{ url_for('admin.story', sid=f.s.id) }}"><b>{{ f.s.headline }}</b></a></span>{% endif %}
+  <form method="post" class="btns"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="target" value="{{ f.target }}"><input type="hidden" name="target_id" value="{{ f.target_id }}">
+    <button class="btn small" name="action" value="dismiss">Dismiss flags</button>
+    {% if f.target == 'story' %}<button class="btn small" name="action" value="correction" title="Thanks the flaggers and counts toward their Good Eye badge">It led to a correction</button>{% endif %}</form>
+</div>
+{% else %}<p class="empty">No open flags.</p>{% endfor %}
+</div>
+{% else %}
+<div class="card">
+{% for c in recent %}
+<div class="cmt"><span class="small muted"><b>@{{ c.username }}</b> on <b>{{ c.headline }}</b> · {{ c.created_at|ago }} · {{ c.upvotes }} upvotes</span>{{ c.body|plain }}
+  <form method="post" class="btns"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ c.id }}"><input type="hidden" name="story_id" value="{{ c.story_id }}">
+  <button class="btn small" name="action" value="hide">Hide</button><button class="btn small danger" name="action" value="delete">Delete</button>
+  <button class="btn small" name="action" value="lock" title="Keep existing comments, stop new ones">Lock this story's comments</button>
+  <a class="btn small link" href="{{ url_for('public.article', slug=c.slug) }}#c{{ c.id }}" target="_blank" rel="noopener">View</a></form></div>
+{% else %}<p class="empty">No comments yet.</p>{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

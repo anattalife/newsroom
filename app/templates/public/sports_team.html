@@ -1,0 +1,56 @@
+{% extends "public/base.html" %}
+{% from "public/_sports.html" import game_card with context %}
+{% set cat_name = 'Sports' %}
+{% block title %}{{ t.label }} · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap sports" style="padding-top:28px;padding-bottom:48px;max-width:900px">
+  <p><a href="{{ url_for('sports.school_page', slug=t.school_slug) }}" class="meta" style="text-decoration:underline">← {{ t.name }}</a></p>
+  <div class="school-hero" style="--c:{{ t.color }}"><i>{{ (t.short or t.name)[:1] }}</i>
+    <div><h1>{{ t.label }}</h1><span class="meta">Record: <b>{{ record }}</b></span></div></div>
+
+  {% if upcoming %}<section><h2 class="h-sec">Up next</h2>
+    <div class="games">{% for gm in upcoming %}{{ game_card(gm, show_team=False) }}{% endfor %}</div>
+    <p class="meta" style="margin:10px 0 0">📹 Going to a game? Live stream it and share the link on the game's page. It's worth big points.</p></section>{% endif %}
+
+  <section id="fans" class="fans" aria-labelledby="fans-h"><h2 class="h-sec" id="fans-h">Top fans · {{ season }}</h2>
+    {% if king %}<div class="throne"><span class="big" aria-hidden="true">👑</span><div><small>#1 Fan · {{ t.label }}</small><a href="{{ url_for('members.profile', username=king.username) }}"><b>@{{ king.username }}</b></a><span>{{ king.score }} points this season · wearing it since {{ king.since|ago }}</span></div></div>
+    {% else %}<div class="throne empty"><span class="big" aria-hidden="true">👑</span><div><small>#1 Fan · {{ t.label }}</small><b>Up for grabs</b><span>{{ crown_min }} points from this team's games takes the crown.</span></div></div>{% endif %}
+    {% if fans|length > 1 %}<ol class="fan-list">{% for f_ in fans %}<li><span class="rank">{{ loop.index }}</span><a href="{{ url_for('members.profile', username=f_.username) }}">@{{ f_.username }}</a><b>{{ f_.score }}</b></li>{% endfor %}</ol>
+      {% if king and fans[1] %}<p class="meta">@{{ fans[1].username }} needs <b>{{ fans[0].score - fans[1].score + 1 }}</b> more to take the crown.</p>{% endif %}{% endif %}
+    <p class="meta">Earn points on this team's game pages: post the final score, live updates, and live streams (worth the most).</p>
+  </section>
+
+  <section id="info" aria-labelledby="info-h"><h2 class="h-sec" id="info-h">Good to know</h2>
+    {% if t.info %}<div class="box"><div class="team-info">{{ t.info }}</div>{% if info_by or t.info_at %}<span class="meta">Updated{% if info_by %} by @{{ info_by }}{% endif %}{% if t.info_at %} · {{ t.info_at|ago }}{% endif %}</span>{% endif %}</div>
+    {% else %}<p class="meta">Nothing here yet: home field, parking, ticket prices, livestream channel, booster club, anything fans should know.</p>{% endif %}
+    {% if member and not t.info_locked %}
+    <details style="margin-top:8px"><summary style="cursor:pointer;color:var(--blue);font-weight:600">{{ 'Edit' if t.info else 'Add something' }}</summary>
+      <form method="post" class="stack" style="margin-top:10px">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <label class="f"><span class="sr">Good to know</span><textarea name="info" rows="6" maxlength="{{ info_max }}" placeholder="Home games at Hornet Stadium, 1 Hornet Way. Tickets $6, students $4.&#10;Games stream on the Hillsdale Hornets Facebook page.">{{ t.info }}</textarea></label>
+        <div><button class="btn solid" name="action" value="info">Save</button> <span class="meta">Any member can update this. Please keep it accurate and friendly.</span></div>
+      </form></details>
+    {% endif %}
+  </section>
+
+  <section><h2 class="h-sec">Full schedule &amp; results</h2>
+  {% if rows %}<div class="sched" role="table" aria-label="Schedule">
+    {% for gm in rows %}<a role="row" href="{{ url_for('sports.game', gid=gm.id) }}" class="{{ gm.status }}">
+      <span role="cell" class="d">{{ gm.day_label }}</span>
+      <span role="cell" class="o">{{ 'vs.' if gm.home != 'away' else 'at' }} <b>{{ gm.opponent }}</b>{% if gm.note %}<span class="meta"> · {{ gm.note }}</span>{% endif %}</span>
+      <span role="cell" class="r">{% if gm.video %}<b class="vid" title="Has video">▶</b> {% endif %}{% if gm.live == 'live' and gm.status != 'live' %}<b class="tag live">Live now</b> {% endif %}{% if gm.has_score %}<b class="res {{ gm.result }}">{{ gm.result }}</b> {{ gm.our_score }}–{{ gm.their_score }}{% if gm.status == 'live' %} <b class="tag live">Live</b>{% endif %}{% elif gm.status in ('postponed','cancelled') %}<b class="tag off">{{ gm.status_label }}</b>{% else %}{{ gm.time_label }}{% endif %}</span>
+    </a>{% endfor %}</div>
+  {% else %}<p class="empty">No games yet.</p>{% endif %}</section>
+
+  <details class="box" {{ 'open' if error }}><summary><b>Add a missing game</b></summary>
+    <form method="post" class="stack" style="margin-top:12px">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      {% if error %}<div class="err" role="alert">{{ error }}</div>{% endif %}
+      <div class="prow"><label class="f grow">Date<input type="date" name="date" required value="{{ f.date }}"></label><label class="f grow">Time (if known)<input type="time" name="time" value="{{ f.time }}"></label></div>
+      <div class="prow"><label class="f grow">Opponent<input type="text" name="opponent" required maxlength="120" value="{{ f.opponent }}"></label>
+        <label class="f grow">Where<select name="home"><option value="home">Home</option><option value="away" {{ 'selected' if f.home == 'away' }}>Away</option><option value="neutral" {{ 'selected' if f.home == 'neutral' }}>Neutral site</option></select></label></div>
+      <label class="f">Place (optional)<input type="text" name="location" maxlength="160" value="{{ f.location }}"></label>
+      <div><button class="btn solid">Add game</button> <a href="{{ url_for('sports.add_schedule', school_id=t.school_id, team_id=t.id) }}" style="margin-left:10px;text-decoration:underline">Or paste the whole schedule</a></div>
+    </form></details>
+</div>
+{% endblock %}

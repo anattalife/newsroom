@@ -1,0 +1,31 @@
+{% extends "admin/base.html" %}
+{% set active = 'badges' %}
+{% block title %}Badges{% endblock %}
+{% block main %}
+<div class="head"><div><h1>Badges</h1><div class="sub">Members earn these automatically, except Special badges, which you award from a member's page. Give a badge up to four levels (Bronze, Silver, Gold, Legend), e.g. “1, 10, 25, 100”. Secret badges hide their name until someone earns one; everyone sees the hint.</div></div>
+<a class="btn" href="{{ url_for('members.badges') }}" target="_blank" rel="noopener">Public badges page ↗</a></div>
+{% macro bform(b=None) %}
+<form method="post" class="card form" style="gap:10px">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">{% if b %}<input type="hidden" name="id" value="{{ b.id }}">{% endif %}
+  <div class="btns" style="flex-wrap:nowrap"><input type="text" name="icon" value="{{ b.icon if b else '★' }}" aria-label="Icon" style="width:64px;text-align:center;font-size:20px"><input type="text" name="name" value="{{ b.name if b else '' }}" placeholder="Badge name" aria-label="Name" required>
+  {% if b %}<span class="small muted" style="white-space:nowrap">{{ b.holders }} have it</span>{% endif %}</div>
+  <input type="text" name="description" value="{{ b.description if b else '' }}" placeholder="What it's for" aria-label="Description">
+  <div class="three">
+    <label class="f">Group<select name="grp">{% for k, l in groups %}<option value="{{ k }}" {{ 'selected' if b and b.grp == k }}>{{ l }}</option>{% endfor %}</select></label>
+    <label class="f">Earned by<select name="rule">{% for k, r in rules.items() %}<option value="{{ k }}" {{ 'selected' if (b.rule if b else 'manual') == k }}>{{ r[0] }}</option>{% endfor %}</select></label>
+    <label class="f">Levels at<input type="text" name="tiers" value="{{ (b.tiers|replace('[', '')|replace(']', '')) if b and b.tiers else (b.n if b else 1) }}" placeholder="1, 10, 25, 100"></label>
+  </div>
+  <div class="three">
+    <label class="f">Rarity<select name="rarity">{% for k, l in rarities %}<option value="{{ k }}" {{ 'selected' if b and b.rarity == k }}>{{ l }}</option>{% endfor %}</select></label>
+    <label class="f" style="grid-column:span 2">Hint (secret badges)<input type="text" name="hint" value="{{ b.hint if b else '' }}" maxlength="120" placeholder="A clue, without giving it away"></label>
+  </div>
+  <div class="btns" style="justify-content:space-between"><span class="btns"><label class="check"><input type="checkbox" name="active" {{ 'checked' if not b or b.active }}> Active</label><label class="check"><input type="checkbox" name="secret" {{ 'checked' if b and b.secret }}> Secret</label></span><button class="btn {{ 'dark' if not b }} small">{{ 'Save' if b else 'Add badge' }}</button></div>
+</form>
+{% endmacro %}
+{% for k, label in groups %}
+<h2 style="margin-top:8px">{{ label }}</h2>
+<div class="grid4" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr))">{% for b in rows if b.grp == k %}{{ bform(b) }}{% endfor %}</div>
+{% endfor %}
+<h2 style="margin-top:8px">Add a badge</h2>
+<div style="max-width:520px">{{ bform() }}</div>
+{% endblock %}

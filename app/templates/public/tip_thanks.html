@@ -1,0 +1,17 @@
+{% extends "public/base.html" %}
+{% set tab = 'tip' %}
+{% block title %}Thanks · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap"><div class="page" role="status">
+  <h1>Thanks for the tip</h1>
+  <p class="prose">An editor will look at it. Nothing is published until we check it out.</p>
+  {% if guest %}
+  <div class="box" style="margin:20px 0">
+    <h2 style="font:700 22px var(--serif);margin:0">Get credit for your tip</h2>
+    <p style="margin:0">Create a free account and the tips you sent from this browser move into it (except any you sent anonymously). You'll see when they're published, earn points and badges, and can choose to be credited by name.</p>
+    <p style="margin:0"><a class="btn brand" href="{{ url_for('members.join') }}">Create my account</a></p>
+  </div>
+  {% elif member %}<p class="prose">You can follow it in <a href="{{ url_for('members.me') }}" style="color:var(--blue);text-decoration:underline">My submissions</a>.</p>{% endif %}
+  <p><a class="btn" href="{{ url_for('public.tip') }}">Send another</a> <a class="btn solid" href="{{ url_for('public.home') }}">Back to the news</a></p>
+</div></div>
+{% endblock %}
