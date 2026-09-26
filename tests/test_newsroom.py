@@ -129,6 +129,9 @@ def fake_ai(system, user):
         body = user.split("ARTICLE:\n", 1)[1].split("\n\nGAPS LIST:")[0]
         return json.dumps({"headline": user.split("HEADLINE: ", 1)[1].split("\n")[0], "summary": "s",
                            "body": body + f"<p>{note}</p>", "gaps": []})
+    if "You write headlines for a local news site" in system:
+        return json.dumps({"headlines": ["Option one headline", "Option two headline", "Option three"],
+                           "summary": "A short summary."})
     if "You check a news article" in system:
         return json.dumps({"flags": [{"text": "sixty officers", "problem": "The material doesn't mention this."}]}
                           if "sixty officers" in user else {"flags": []})
@@ -754,12 +757,21 @@ class NewsroomTest(unittest.TestCase):
         d = self.db()
         m = self.member_client("jamie")
         mid = self.mid("jamie")
-        self.assertIn("Write it myself", m.get("/submit").text)
-        # just the facts → the newsroom develops it
-        r = self.post("/submit/new/facts", {"action": "submit", "fact_what": "The library roof leaked onto the "
-                                            "children's books", "fact_when": "Sunday night", "credit": "1"}, client=m)
-        self.assertEqual(r.status_code, 302)
-        sub = d.one("SELECT * FROM submissions WHERE member_id=? ORDER BY id DESC", (mid,))
+        # one post form: /submit goes straight to it; quick facts go through the tip form
+        self.assertTrue(m.get("/submit").headers["Location"].endswith("/submit/new/article"))
+        self.assertTrue(self.c.get("/submit").headers["Location"].endswith("/admin/post/new"))
+        self.assertTrue(m.get("/submit/new/facts").headers["Location"].endswith("/tip"))
+        form = m.get("/submit/new/article").text
+        for label in ("Headline", "Summary", "Story", "Publish", "Section", "Photos", "Video", "Byline",
+                      "A community member", "Send a quick tip instead"):
+            self.assertIn(label, form)
+        # older "just the facts" submissions still work: the newsroom develops them
+        dbm_now = dbm.now()
+        fid = d.insert("submissions", member_id=mid, kind="facts", status="waiting",
+                       headline="The library roof leaked onto the children's books",
+                       facts=json.dumps({"what": "The library roof leaked onto the children's books",
+                                         "when": "Sunday night"}), credit=1, created_at=dbm_now, updated_at=dbm_now)
+        sub = d.one("SELECT * FROM submissions WHERE id=?", (fid,))
         self.assertEqual((sub["status"], sub["kind"]), ("waiting", "facts"))
         self.assertIn("library roof", self.c.get("/admin/members/submissions").text)
         self.assertIn("Develop this story", self.c.get(f"/admin/members/submissions/{sub['id']}").text)
@@ -812,11 +824,11 @@ class NewsroomTest(unittest.TestCase):
         other = self.member_client("nosy_neighbor")
         self.assertEqual(other.get(f"/submit/{sub['id']}").status_code, 404)
         # photos need the permission tick; then they're private until published
-        r = self.post("/submit/new/facts", {"action": "draft", "fact_what": "Photo of the new mural",
-                                            "photos": (jpeg_with_gps(), "m.jpg")}, client=m,
+        r = self.post("/submit/new/article", {"action": "draft", "headline": "Photo of the new mural",
+                                              "photos": (jpeg_with_gps(), "m.jpg")}, client=m,
                       content_type="multipart/form-data")
         self.assertIn("permission", r.text)
-        r = self.post("/submit/new/facts", {"action": "draft", "fact_what": "Photo of the new mural", "photo_ok": "on",
+        r = self.post("/submit/new/article", {"action": "draft", "headline": "Photo of the new mural", "photo_ok": "on",
                                             "photos": (jpeg_with_gps(), "m.jpg")}, client=m,
                       content_type="multipart/form-data")
         sub = d.one("SELECT * FROM submissions WHERE member_id=? ORDER BY id DESC", (mid,))
@@ -1080,7 +1092,7 @@ class NewsroomTest(unittest.TestCase):
         social.post_pending(d, poster=fake_poster)
         self.assertEqual(len(posted), 1)  # never posted twice
         # a failure shows the reason and can be retried
-        other = d.one("SELECT * FROM stories WHERE status='draft' AND kind='story' ORDER BY id DESC")
+        other = d.one("SELECT * FROM stories WHERE status='draft' AND kind='story' AND body!='' ORDER BY id DESC")
         self.approve(other["id"], share_form="1", share_bluesky="on", share_text_bluesky="this will fail")
         social.post_pending(d, poster=fake_poster)
         share = json.loads(d.val("SELECT social FROM stories WHERE id=?", (other["id"],)))
@@ -1407,7 +1419,7 @@ class NewsroomTest(unittest.TestCase):
         rows = d.q("SELECT * FROM ai_usage WHERE story_id=?", (sid,))
         self.assertEqual({r_["purpose"] for r_ in rows}, {"develop", "write"})
         self.assertGreater(ai.story_cost(d, sid), 0)
-        self.assertIn("AI cost for this story", self.c.get(f"/admin/story/{sid}").text)
+        self.assertIn("this story so far: about $", self.c.get(f"/admin/story/{sid}").text)
         self.assertIn("This month by step", self.c.get("/admin/settings/backups").text)
         # if the cheaper model isn't available on the account, it falls back to the main one
         replies = [R(404, text='{"error":{"message":"model not found"}}'), ok("{}")]
@@ -1662,10 +1674,26 @@ class NewsroomTest(unittest.TestCase):
         d = self.db()
         t = dbm.now()
         side = self.c.get("/admin/").text.split('id="sidebar"')[1].split("</nav>")[0]
-        content_part = side.split(">Content<")[1].split(">Community<")[0]
-        for label in ("All content", "New from sources", "Member submissions", "Reader tips", "Manual add"):
-            self.assertIn(label, content_part)
-        self.assertIn(">Sources<", side.split(">Manage<")[1])
+        # the sidebar: New post on top, then four groups in order
+        self.assertLess(side.index("New post"), side.index(">Overview<"))
+        heads = re.findall(r'class="navh">([^<]+)<', side)
+        self.assertEqual(heads, ["Needs you", "Publish", "People", "Setup"])
+        group = lambda h: side.split(f">{h}<")[1].split('class="navh"')[0]  # noqa: E731
+        for label in ("Reader tips", "Member submissions", "Comments and flags", "New from sources"):
+            self.assertIn(label, group("Needs you"))
+        for label in ("All content", "Sports", "Call It"):
+            self.assertIn(label, group("Publish"))
+        for label in ("Members", "Partners", "Badges"):
+            self.assertIn(label, group("People"))
+        self.assertIn(">Sources<", group("Setup"))
+        self.assertIn(">Settings<", group("Setup"))
+        self.assertNotIn("Manual add", side)
+        self.assertNotIn(">Weather<", side)  # moved inside Settings
+        self.assertNotIn(">Social accounts<", side)
+        setnav = self.c.get("/admin/settings/publication").text
+        self.assertIn(">Weather<", setnav)
+        self.assertIn(">Social accounts<", setnav)
+        self.assertRegex(self.c.get("/admin/weather").text, r'class="navl on"[^>]*href="/admin/settings"')
         # the finder: search, filter by where it came from, section, status and dates
         mid = self.mid("jamie")
         d.insert("stories", headline="Zebra crossing painted downtown", slug="zebra-crossing", status="published",
@@ -2021,6 +2049,95 @@ class NewsroomTest(unittest.TestCase):
             ai.call_claude(d, "sys", "user", web_search=5)
         self.assertAlmostEqual(ai.month_spend(d) - before, 0.04, places=2)
 
+
+    def test_40_one_post_form(self):
+        d = self.db()
+        # the newsroom's New post: a blank draft, reused if you open it twice without typing
+        r = self.c.get("/admin/post/new")
+        sid = int(r.headers["Location"].rsplit("/", 1)[1])
+        self.assertEqual(int(self.c.get("/admin/post/new").headers["Location"].rsplit("/", 1)[1]), sid)
+        page = self.c.get(f"/admin/story/{sid}").text
+        for label in ("Headline", "Summary", "Story", "AI assistant", "Write a draft", "Tighten", "Suggest headlines",
+                      "Fact-check", "Publish", "Section", "Featured image", "Video", "Byline"):
+            self.assertIn(label, page)
+        self.assertNotIn(">Untitled<", page)
+        url = f"/admin/story/{sid}"
+        base = {"headline": "", "summary": "", "body": "", "category": "Local News", "byline": "Staff"}
+        # can't publish an empty post
+        self.post(url, {**base, "action": "approve"})
+        self.assertEqual(d.val("SELECT status FROM stories WHERE id=?", (sid,)), "draft")
+        # AI: write a draft from notes and links (notes are the editor's own; links are read)
+        with claude_patch(), mock.patch("app.writing.read_link", side_effect=fake_read_link):
+            self.post(url, {**base, "action": "ai_draft",
+                            "ai_notes": "Talked to the fire chief. https://article.example/ambulance"})
+        s = d.one("SELECT * FROM stories WHERE id=?", (sid,))
+        self.assertIn("Commissioners buy ambulance", s["headline"])
+        dev = json.loads(s["dev"])
+        self.assertIn("fire chief", dev["pasted"])
+        self.assertIn("https://article.example/ambulance", dev["links"])
+        # headline ideas to pick from; nothing changes until you pick
+        with claude_patch():
+            r = self.post(url, {"headline": s["headline"], "summary": s["summary"], "body": s["body"],
+                                "category": "Local News", "byline": "Staff", "action": "ai_headlines"})
+        self.assertEqual(d.val("SELECT headline FROM stories WHERE id=?", (sid,)), s["headline"])
+        page = self.c.get(url).text
+        self.assertIn("Option two headline", page)
+        self.assertIn('data-fill="headline"', page)
+        # tighten: goes through the revise step with the tighten note, and can be undone
+        with claude_patch():
+            self.post(url, {"headline": s["headline"], "summary": s["summary"], "body": s["body"],
+                            "category": "Local News", "byline": "Staff", "action": "ai_tighten"})
+        self.assertIn("Tighten the writing", d.val("SELECT body FROM stories WHERE id=?", (sid,)))
+        # preview shows the story as readers will see it, with a way back
+        pv = self.c.get(f"/admin/story/{sid}/preview").text
+        self.assertIn("Back to the editor", pv)
+        self.assertIn(s["headline"][:20], pv)
+        # members never see the AI box or reach the preview
+        m = self.member_client("postform_member")
+        self.assertEqual(m.get(f"/admin/story/{sid}/preview").status_code, 302)
+        # an untouched new post is thrown away by Delete draft
+        r = self.c.get("/admin/post/new")
+        blank = int(r.headers["Location"].rsplit("/", 1)[1])
+        self.assertNotEqual(blank, sid)
+        self.post(f"/admin/story/{blank}", {**base, "action": "reject"})
+        self.assertIsNone(d.one("SELECT id FROM stories WHERE id=?", (blank,)))
+        # members: one Byline choice, plus summary, subcategory and photo credit carry into the story
+        mid = self.mid("postform_member")
+        org = d.insert("orgs", name="First Church", slug="first-church-pf", category="Faith", member_id=mid,
+                       status="approved", created_at=dbm.now())
+        body = "<p>" + "The church food pantry opens on Thursdays from 4 to 6 p.m. " * 3 + "</p>"
+        from app import settings as st
+        subs = st.subcategories(d)
+        cat, sub_name = next(((c, v[0]) for c, v in subs.items() if v), ("Local News", ""))
+        form = m.get("/submit/new/article").text
+        self.assertIn("For <b>First Church</b>", form)
+        self.assertIn("don't earn you points", form)
+        self.post("/submit/new/article", {"action": "submit", "headline": "Pantry opens Thursdays", "body": body,
+                                          "summary": "Free groceries every week.", "category": cat,
+                                          "subcategory": sub_name, "by": f"org:{org}"}, client=m)
+        sub = d.one("SELECT * FROM submissions WHERE member_id=? ORDER BY id DESC", (mid,))
+        self.assertEqual((sub["org_id"], sub["summary"], sub["subcategory"]), (org, "Free groceries every week.", sub_name))
+        self.post(f"/admin/members/submissions/{sub['id']}", {"action": "publish"})
+        story = d.one("SELECT * FROM stories WHERE submission_id=?", (sub["id"],))
+        self.assertEqual((story["summary"], story["subcategory"], story["org_id"]),
+                         ("Free groceries every week.", sub_name, org))
+        self.post("/submit/new/article", {"action": "draft", "headline": "Quiet one", "body": body, "by": "anon",
+                                          "photo_credit": "Pat Smith"}, client=m)
+        sub = d.one("SELECT * FROM submissions WHERE member_id=? ORDER BY id DESC", (mid,))
+        self.assertEqual((sub["credit"], sub["org_id"], sub["photo_credit"]), (0, None, "Pat Smith"))
+        # someone else's organization can't be claimed
+        self.post("/submit/new/article", {"action": "draft", "headline": "Sneaky", "body": body, "by": "org:99999"},
+                  client=m)
+        sub = d.one("SELECT * FROM submissions WHERE member_id=? ORDER BY id DESC", (mid,))
+        self.assertEqual((sub["credit"], sub["org_id"]), (1, None))
+
+    def test_41_scores_strip_only_on_sports(self):
+        # the Scores & schedules strip belongs on the Sports section, nowhere else
+        for url in ("/all", "/national-world", "/national", "/world", "/category/local-news"):
+            r = self.c.get(url)
+            self.assertEqual(r.status_code, 200, url)
+            self.assertNotIn("Scores &amp; schedules →", r.text, url)
+        self.assertIn("Scores &amp; schedules →", self.c.get("/category/sports").text)
 
 if __name__ == "__main__":
     unittest.main()
