@@ -15,7 +15,7 @@
     {% endif %}
   </div>
   {% if intro %}<p class="meta" style="margin:-8px 0 16px">{{ intro }}</p>{% endif %}
-  {% if scores is not none %}{% from "public/_sports.html" import strip_chip with context %}
+  {% if scores is defined and scores is not none %}{% from "public/_sports.html" import strip_chip with context %}
   <div class="scorestrip" style="border:0;margin:-6px 0 18px"><div style="display:flex;gap:10px;overflow-x:auto;padding:2px 0 8px">{% for gm in scores %}{{ strip_chip(gm) }}{% endfor %}<a class="btn" href="{{ url_for('sports.scoreboard') }}" style="flex:none">Scores &amp; schedules →</a></div></div>
   {% endif %}
   {% if is_search %}

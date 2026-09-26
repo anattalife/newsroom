@@ -1,50 +1,85 @@
 {% extends "public/base.html" %}
 {% set tab = 'submit' %}
-{% block title %}{{ 'Write it myself' if kind == 'article' else 'Just the facts' }} · {{ S.site_name }}{% endblock %}
+{% block title %}{{ 'Edit your story' if sub else 'New post' }} · {{ S.site_name }}{% endblock %}
 {% block content %}
-<div class="wrap"><div class="page wide">
-  <p><a href="{{ url_for('members.me') }}" class="meta" style="text-decoration:underline">← My submissions</a></p>
-  <h1>{{ 'Write it myself' if kind == 'article' else 'Just the facts' }}</h1>
+{% set cur_cat = f.category or (sub.category if sub else '') %}
+{% set by = f.by or ((('org:' ~ sub.org_id) if sub.org_id else ('me' if sub.credit else 'anon')) if sub else 'me') %}
+<div class="wrap np-wrap">
+  <div class="np-top"><a href="{{ url_for('members.me') }}" class="meta">← My submissions</a>
+    {% if sub %}<span class="meta">{{ {'draft':'Draft','waiting':'Waiting for review','sent_back':'Sent back to you'}.get(sub.status, sub.status) }} · saved {{ sub.updated_at|ago }}</span>{% endif %}</div>
   {% if sub and sub.status == 'sent_back' and sub.note %}<div class="flash warn"><b>Note from the newsroom:</b> {{ sub.note }}</div>{% endif %}
-  <div class="submit-cols">
-  <form method="post" enctype="multipart/form-data" class="stack grow">
+  {% if error %}<div class="err" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" enctype="multipart/form-data" class="np">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-    {% if error %}<div class="err" role="alert">{{ error }}</div>{% endif %}
-    {% if kind == 'article' %}
-    <label class="f">Headline<input type="text" name="headline" maxlength="200" required value="{{ f.headline or (sub.headline if sub else '') }}" style="font-size:19px;font-weight:600"></label>
-    <div class="f" data-editor><span id="body-label">Your article</span>
-      <div class="toolbar" role="toolbar" aria-label="Formatting"><button type="button" data-cmd="bold" aria-label="Bold"><b>B</b></button><button type="button" data-cmd="italic" aria-label="Italic"><i>I</i></button><button type="button" data-cmd="h2" aria-label="Subheading">H</button><button type="button" data-cmd="p" aria-label="Paragraph">¶</button><button type="button" data-cmd="insertUnorderedList" aria-label="List">• List</button><button type="button" data-cmd="createLink" aria-label="Link">Link</button></div>
-      <div class="editor" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="body-label" hidden>{{ draft_body|safe }}</div>
-      <textarea name="body" aria-labelledby="body-label" style="min-height:320px">{{ draft_body }}</textarea>
+    <div class="np-main">
+      <label class="np-field"><span>Headline</span><textarea class="np-title" name="headline" rows="1" maxlength="200" required placeholder="Add a headline" data-grow>{{ f.headline or (sub.headline if sub else '') }}</textarea></label>
+      <label class="np-field"><span>Summary <em>(optional: one or two sentences shown under the headline)</em></span><textarea class="np-summary" name="summary" rows="2" maxlength="400" placeholder="What happened, in a sentence or two" data-grow>{{ f.summary or (sub.summary if sub else '') }}</textarea></label>
+      <div class="np-field" data-editor><span id="body-label">Story</span>
+        <div class="np-editor">
+          <div class="toolbar" role="toolbar" aria-label="Formatting"><button type="button" data-cmd="bold" aria-label="Bold"><b>B</b></button><button type="button" data-cmd="italic" aria-label="Italic"><i>I</i></button><button type="button" data-cmd="h2" aria-label="Subheading">H</button><button type="button" data-cmd="p" aria-label="Paragraph">¶</button><button type="button" data-cmd="insertUnorderedList" aria-label="List">• List</button><button type="button" data-cmd="createLink" aria-label="Link">Link</button></div>
+          <div class="editor" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="body-label" data-placeholder="Tell your neighbors what happened…" hidden>{{ draft_body|safe }}</div>
+          <textarea name="body" aria-labelledby="body-label" style="min-height:340px">{{ draft_body }}</textarea>
+        </div>
+      </div>
+      <details class="np-box np-guide"><summary>✍️ Tips for a good story</summary><div class="np-in prose">{{ md(S.writing_guide) }}</div></details>
+      <p class="meta">Don't want to write the whole thing? <a href="{{ url_for('public.tip') }}" style="text-decoration:underline">Send a quick tip instead</a> and we'll take it from there.</p>
     </div>
-    <label class="f">Links to sources (optional, one per line)<textarea name="links" rows="2" style="min-height:60px">{{ f.links or links }}</textarea></label>
-    {% else %}
-    {% for k, label in labels %}
-    <label class="f">{{ label }}<textarea name="fact_{{ k }}" rows="{{ 3 if k in ('what', 'else') else 1 }}" style="min-height:{{ 90 if k in ('what', 'else') else 48 }}px" {% if k == 'what' %}required{% endif %} placeholder="{{ {'what':'The main thing that happened, in your own words','where':'Address, business or area','when':'Day and time','who':'People, businesses or groups involved','how':'I saw it · a sign said · the school emailed parents…','else':'Anything that would help us'}[k] }}">{{ f.get('fact_' ~ k) or facts.get(k, '') }}</textarea></label>
-    {% endfor %}
-    <label class="f">Links (optional, one per line)<textarea name="links" rows="2" style="min-height:60px" placeholder="A post, a page, a video…">{{ f.links or links }}</textarea></label>
-    {% endif %}
-    <label class="f">Video (optional)<input type="url" name="video" placeholder="A YouTube link, or a Facebook video or reel link" value="{{ f.video or (sub.video if sub else '') or '' }}"><span class="meta">It plays at the top of the story.</span></label>
-    <div class="row">
-      <label class="f grow">Category (optional)<select name="category"><option value="">Let the newsroom choose</option>{% for c in categories %}<option {{ 'selected' if (f.category or (sub.category if sub else '')) == c }}>{{ c }}</option>{% endfor %}</select></label>
-      {% if orgs %}<label class="f grow">Sending for<select name="org_id"><option value="">Just me</option>{% for o in orgs %}<option value="{{ o.id }}" {{ 'selected' if sub and sub.org_id == o.id }}>{{ o.name }}</option>{% endfor %}</select></label>{% endif %}
-    </div>
-    <div class="f"><span>Photos (up to {{ max_photos }})</span>
-      {% if photos %}<div class="thumbs">{% for p in photos %}<label><img src="{{ url_for('members.my_photo', name=p) }}" alt="Photo {{ loop.index }}"><span class="check"><input type="checkbox" name="remove_photo" value="{{ p }}"> Remove</span></label>{% endfor %}</div>{% endif %}
-      <input type="file" name="photos" accept="image/jpeg,image/png" multiple></div>
-    <label class="check small-check"><input type="checkbox" name="photo_ok" {{ 'checked' if photos or f.photo_ok }}> <span>I took these photos or have permission to share them, and the newsroom may publish them. Location data is removed.</span></label>
-    <fieldset class="credit"><legend>If it's published</legend>
-      {% set cr = f.credit or ('1' if not sub or sub.credit else '0') %}
-      <label class="check"><input type="radio" name="credit" value="1" {{ 'checked' if cr != '0' }}> {{ 'By @' ~ member.username if kind == 'article' else 'Tip from @' ~ member.username }}</label>
-      <label class="check"><input type="radio" name="credit" value="0" {{ 'checked' if cr == '0' }}> Don't show my name (you still get the points)</label>
-    </fieldset>
-    <div class="row"><button class="btn brand" type="submit" name="action" value="submit">{{ 'Publish' if member.trusted and kind == 'article' else 'Send to the newsroom' }}</button><button class="btn" type="submit" name="action" value="draft" formnovalidate>Save draft</button></div>
-    <p class="meta">{% if member.trusted and kind == 'article' %}You're a trusted member, so your article goes live straight away. The newsroom may still edit it.{% else %}The newsroom checks everything before it's published. If they change your article, it shows “{{ S.edited_note_text }}”.{% endif %}</p>
+
+    <aside class="np-side" aria-label="Post settings">
+      <details class="np-box" open>
+        <summary>Publish</summary>
+        <div class="np-in">
+          <div class="np-row"><span>Status</span><b>{{ {'draft':'Draft','waiting':'Waiting for review','sent_back':'Sent back'}.get(sub.status, 'Draft') if sub else 'New' }}</b></div>
+          <div class="np-row"><span>Review</span><b>{{ 'Goes live right away' if member.trusted else 'The newsroom checks it first' }}</b></div>
+          <div class="np-actions">
+            <button class="btn brand" type="submit" name="action" value="submit">{{ 'Publish' if member.trusted else 'Submit for review' }}</button>
+            <button class="btn" type="submit" name="action" value="draft" formnovalidate>Save draft</button>
+          </div>
+          <span class="meta small">{% if member.trusted %}You're a trusted member, so your story goes live straight away. The newsroom may still edit it.{% else %}If the newsroom changes your story, it shows “{{ S.edited_note_text }}”.{% endif %}</span>
+          {% if sub and sub.status in ('draft', 'waiting', 'sent_back') %}<button class="btn small" type="submit" formaction="{{ url_for('members.submit_withdraw', sub_id=sub.id) }}" formnovalidate data-confirm="Withdraw this story?">Withdraw</button>{% endif %}
+        </div>
+      </details>
+
+      <details class="np-box" open>
+        <summary>Section</summary>
+        <div class="np-in">
+          <label class="f">Where it goes<select name="category" data-subcat-parent><option value="">Let the newsroom choose</option>{% for c in categories if c not in ('Weather', 'National & World') %}<option {{ 'selected' if cur_cat == c }}>{{ c }}</option>{% endfor %}</select></label>
+          <label class="f" data-subcat-wrap {% if not subcats.get(cur_cat) %}hidden{% endif %}>Subcategory<select name="subcategory" data-subcat><option value="">None</option>{% for cat, subs in subcats.items() %}{% for x in subs %}<option value="{{ x }}" data-cat="{{ cat }}" {{ 'selected' if cat == cur_cat and x == (f.subcategory or (sub.subcategory if sub else '')) }} {% if cat != cur_cat %}hidden disabled{% endif %}>{{ x }}</option>{% endfor %}{% endfor %}</select></label>
+        </div>
+      </details>
+
+      <details class="np-box" open>
+        <summary>Photos</summary>
+        <div class="np-in">
+          {% if photos %}<div class="thumbs">{% for p in photos %}<label><img src="{{ url_for('members.my_photo', name=p) }}" alt="Photo {{ loop.index }}">{% if loop.first %}<span class="meta">Featured</span>{% endif %}<span class="check"><input type="checkbox" name="remove_photo" value="{{ p }}"> Remove</span></label>{% endfor %}</div>{% endif %}
+          <label class="f" style="font-weight:400">Add photos (up to {{ max_photos }}; the first one is the featured image)<input type="file" name="photos" accept="image/jpeg,image/png" multiple></label>
+          <label class="f">Photo credit<input type="text" name="photo_credit" maxlength="120" placeholder="Photo by…" value="{{ f.photo_credit or (sub.photo_credit if sub else '') }}"></label>
+          <label class="check small-check"><input type="checkbox" name="photo_ok" {{ 'checked' if photos or f.photo_ok }}> <span>I took these photos or have permission to share them. Location data is removed.</span></label>
+        </div>
+      </details>
+
+      <details class="np-box" {{ 'open' if f.video or (sub and sub.video) }}>
+        <summary>Video</summary>
+        <div class="np-in">
+          <label class="f">YouTube or Facebook link<input type="url" name="video" placeholder="https://youtube.com/watch?v=…" value="{{ f.video or (sub.video if sub else '') or '' }}"></label>
+          <span class="meta small">It plays at the top of the story.</span>
+        </div>
+      </details>
+
+      <details class="np-box" open>
+        <summary>Byline</summary>
+        <div class="np-in np-by">
+          <label class="radio"><input type="radio" name="by" value="me" {{ 'checked' if by == 'me' }}> <span><b>@{{ member.username }}</b><br><span class="meta small">Your name, linked to your profile</span></span></label>
+          <label class="radio"><input type="radio" name="by" value="anon" {{ 'checked' if by == 'anon' }}> <span>A community member<br><span class="meta small">We won't show your name. You still get the points.</span></span></label>
+          {% for o in orgs %}<label class="radio"><input type="radio" name="by" value="org:{{ o.id }}" {{ 'checked' if by == 'org:' ~ o.id }}> <span>For <b>{{ o.name }}</b><br><span class="meta small">Shown under your organization, with its author box. Posts for your organization don't earn you points.</span></span></label>{% endfor %}
+        </div>
+      </details>
+
+      <details class="np-box" {{ 'open' if links }}>
+        <summary>Links to sources</summary>
+        <div class="np-in"><label class="f" style="font-weight:400">Optional, one per line: where the facts came from<textarea name="links" rows="3" style="min-height:70px">{{ f.links or links }}</textarea></label></div>
+      </details>
+    </aside>
   </form>
-  <aside class="guide">
-    {% if kind == 'article' %}{{ md(S.writing_guide) }}{% else %}
-    <p><b>Tips for good facts</b></p><ul><li>Say only what you know, and how you know it.</li><li>Names, times and places help us most.</li><li>Photos and links help us check it.</li><li>The newsroom writes the story and may contact you.</li></ul>{% endif %}
-  </aside>
-  </div>
-</div></div>
+</div>
 {% endblock %}

@@ -1,5 +1,6 @@
 <nav class="setnav" aria-label="Settings sections">
   {% for s in sections %}<a class="navl {{ 'on' if section == s.id }}" href="{{ url_for('admin.settings_section', section=s.id) }}">{{ s.title }}</a>{% endfor %}
+  <a class="navl {{ 'on' if section == 'weather' }}" href="{{ url_for('admin.weather_settings') }}">Weather</a>
   <a class="navl {{ 'on' if section == 'social' }}" href="{{ url_for('admin.social_accounts') }}">Social accounts</a>
   <a class="navl {{ 'on' if section == 'people' }}" href="{{ url_for('admin.people') }}">People</a>
   <a class="navl {{ 'on' if section == 'backups' }}" href="{{ url_for('admin.backups') }}">Backups and usage</a>

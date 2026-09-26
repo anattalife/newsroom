@@ -22,44 +22,46 @@
 <div class="shell">
 <nav class="side" id="sidebar" aria-label="Newsroom">
   <a class="brand" href="{{ url_for('admin.overview') }}">{{ mark() }}<span><b>{{ S.site_name }}</b><small>Newsroom</small></span></a>
-  <a class="navl {{ 'on' if active == 'overview' }}" href="{{ url_for('admin.overview') }}">Overview</a>
+  <a class="newpost-btn" href="{{ url_for('admin.new_post') }}">✏️ New post</a>
   {% set act = active or '' %}
   {% set builtin_ids = nav.builtins|map(attribute='id')|map('string')|list %}
   {% set on_sources = act == 'sources' or act.startswith('fold') or (act.startswith('src') and act[3:] not in builtin_ids) %}
+  <a class="navl {{ 'on' if active == 'overview' }}" href="{{ url_for('admin.overview') }}">Overview</a>
   <div class="navsec">
-    <div class="navh">Content</div>
-    <a class="navl {{ 'on' if active == 'content' }}" href="{{ url_for('admin.content') }}">All content</a>
-    <a class="navl {{ 'on' if active == 'all' }}" href="{{ url_for('admin.queue') }}"><span>New from sources</span>{% if nav.from_sources %}<span class="count">{{ nav.from_sources }}</span>{% endif %}</a>
-    <a class="navl {{ 'on' if active == 'callit' }}" href="{{ url_for('admin.callit_admin') }}"><span>🎯 Call It</span>{% if nav.callit %}<span class="count hot" title="Waiting for the real answer">{{ nav.callit }}</span>{% endif %}</a>
-    <a class="navl {{ 'on' if active == 'subs' }}" href="{{ url_for('admin.submissions') }}"><span>Member submissions</span>{% if nav.subs %}<span class="count hot">{{ nav.subs }}</span>{% endif %}</a>
-    {% for s in nav.builtins|sort(attribute='type', reverse=true) %}
+    <div class="navh">Needs you</div>
+    {% for s in nav.builtins|sort(attribute='type', reverse=true) if s.type != 'manual' %}
     <a class="navl {{ 'on' if active == 'src' ~ s.id }} {{ 'off' if not s.enabled }}" href="{{ url_for('admin.queue', sid=s.id) }}">
       <span>{{ s.name }}</span>{% if s.waiting %}<span class="count {{ 'hot' if s.type == 'tips' }}">{{ s.waiting }}</span>{% endif %}</a>
     {% endfor %}
+    <a class="navl {{ 'on' if active == 'subs' }}" href="{{ url_for('admin.submissions') }}"><span>Member submissions</span>{% if nav.subs %}<span class="count hot">{{ nav.subs }}</span>{% endif %}</a>
+    {% if can('editor') %}<a class="navl {{ 'on' if active == 'moderation' }}" href="{{ url_for('admin.moderation') }}"><span>Comments and flags</span>{% if nav.moderation %}<span class="count hot">{{ nav.moderation }}</span>{% endif %}</a>{% endif %}
+    <a class="navl {{ 'on' if active == 'all' }}" href="{{ url_for('admin.queue') }}"><span>New from sources</span>{% if nav.from_sources %}<span class="count">{{ nav.from_sources }}</span>{% endif %}</a>
   </div>
   <div class="navsec">
-    <div class="navh">Community</div>
-    {% if can('editor') %}
-    <a class="navl {{ 'on' if active == 'moderation' }}" href="{{ url_for('admin.moderation') }}"><span>Comments and flags</span>{% if nav.moderation %}<span class="count hot">{{ nav.moderation }}</span>{% endif %}</a>
+    <div class="navh">Publish</div>
+    <a class="navl {{ 'on' if active == 'content' }}" href="{{ url_for('admin.content') }}">All content</a>
+    {% if can('editor') %}<a class="navl {{ 'on' if active == 'sports' }}" href="{{ url_for('admin.sports_admin') }}">Sports</a>{% endif %}
+    <a class="navl {{ 'on' if active == 'callit' }}" href="{{ url_for('admin.callit_admin') }}"><span>🎯 Call It</span>{% if nav.callit %}<span class="count hot" title="Waiting for the real answer">{{ nav.callit }}</span>{% endif %}</a>
+  </div>
+  {% if can('editor') %}
+  <div class="navsec">
+    <div class="navh">People</div>
     <a class="navl {{ 'on' if active == 'members' }}" href="{{ url_for('admin.members') }}">Members</a>
     <a class="navl {{ 'on' if active == 'partners' }}" href="{{ url_for('admin.partners_admin') }}"><span>Partners</span>{% if nav.partners %}<span class="count hot">{{ nav.partners }}</span>{% endif %}</a>
-    <a class="navl {{ 'on' if active == 'sports' }}" href="{{ url_for('admin.sports_admin') }}">Sports</a>
-    {% endif %}
     {% if can('owner') %}<a class="navl {{ 'on' if active == 'badges' }}" href="{{ url_for('admin.badges') }}">Badges</a>{% endif %}
   </div>
+  {% endif %}
   <div class="navsec">
-    <div class="navh">Manage</div>
+    <div class="navh">Setup</div>
     <a class="navl {{ 'on' if on_sources }}" href="{{ url_for('admin.sources_list') }}"><span>Sources</span>{% if nav.source_problems %}<span class="count hot" title="Sources with a problem">{{ nav.source_problems }}</span>{% endif %}</a>
-    {% if can('owner') %}<a class="navl {{ 'on' if active == 'weather' }}" href="{{ url_for('admin.weather_settings') }}">Weather</a>
-    <a class="navl {{ 'on' if active == 'social' }}" href="{{ url_for('admin.social_accounts') }}">Social accounts</a>
-    <a class="navl {{ 'on' if active == 'settings' }}" href="{{ url_for('admin.settings_home') }}">Settings</a>{% endif %}
-    <a class="navl" href="{{ url_for('public.home') }}" target="_blank" rel="noopener">View public site ↗</a>
+    {% if can('owner') %}<a class="navl {{ 'on' if active in ('settings', 'weather', 'social') }}" href="{{ url_for('admin.settings_home') }}">Settings</a>{% endif %}
   </div>
   <div class="me">
     <span class="avatar">{{ (user.name or user.email)[:2]|upper }}</span>
     <span style="flex:1;min-width:0"><a href="{{ url_for('admin.account') }}" style="color:var(--ink);font-weight:600;font-size:14px">{{ user.name }}</a><br><span class="small muted">{{ user.role|title }}</span></span>
     <form method="post" action="{{ url_for('admin.logout') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn link small" type="submit">Log out</button></form>
   </div>
+  <a class="viewsite" href="{{ url_for('public.home') }}" target="_blank" rel="noopener">View public site ↗</a>
 </nav>
 <main class="main" id="main">
   {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat, m in msgs %}<div class="flash {{ 'error' if cat == 'error' }}" role="status">{{ m }}</div>{% endfor %}{% endwith %}

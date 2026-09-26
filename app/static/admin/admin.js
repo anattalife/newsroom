@@ -203,3 +203,19 @@
     if (wrap) wrap.hidden = !any;
   });
 })();
+
+// Post editor: headline and summary grow as you type; AI headline picks fill the fields
+(function () {
+  const grow = (el) => { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; };
+  document.querySelectorAll("textarea[data-grow]").forEach((el) => {
+    grow(el); el.addEventListener("input", () => grow(el)); window.addEventListener("resize", () => grow(el));
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter" && el.name === "headline") e.preventDefault(); });
+  });
+  document.querySelectorAll("[data-fill]").forEach((b) => b.addEventListener("click", () => {
+    const f = document.querySelector(`textarea[name=${b.dataset.fill}]`);
+    if (!f) return;
+    f.value = b.dataset.value; grow(f); f.focus();
+    b.parentElement.querySelectorAll("[data-fill]").forEach((x) => { x.style.borderColor = ""; });
+    b.style.borderColor = "#5B3FB5";
+  }));
+})();

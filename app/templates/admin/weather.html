@@ -3,7 +3,7 @@
 {% block title %}Weather{% endblock %}
 {% block main %}
 <div class="head">
-  <div><h1>Weather</h1><div class="sub">Forecasts, current conditions, alerts and radar from the National Weather Service. Free, and updated every 15 minutes.</div></div>
+  <div><div class="eyebrow"><a href="{{ url_for('admin.settings_home') }}">Settings</a> › Weather</div><h1>Weather</h1><div class="sub">Forecasts, current conditions, alerts and radar from the National Weather Service. Free, and updated every 15 minutes.</div></div>
   <div class="btns">
     <form method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn" type="submit" name="action" value="refresh" {{ 'disabled' if not c.weather_locations }}>Update now</button></form>
     <a class="btn dark" href="{{ url_for('public.weather_page') }}" target="_blank" rel="noopener">View weather page ↗</a>

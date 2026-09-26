@@ -10,6 +10,7 @@
 <link rel="canonical" href="{{ request.url }}">
 {% endblock %}
 {% block content %}
+{% if preview %}<div class="preview-bar" role="status">👁 Preview: this is how the story will look. It isn't published{{ ' yet' if s.status != 'published' }}. <a href="{{ url_for('admin.story', sid=s.id) }}" style="text-decoration:underline">Back to the editor</a></div>{% endif %}
 <div class="wrap article">
   <main>
     <a class="kicker" href="{{ category_url(s.category) }}">{{ s.category }}</a>{% if s.subcategory %}<span class="kicker"> · </span><a class="kicker" href="{{ category_url(s.category, s.subcategory) }}">{{ s.subcategory }}</a>{% endif %}

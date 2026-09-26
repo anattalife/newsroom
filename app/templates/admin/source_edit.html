@@ -16,7 +16,7 @@
       <a class="type {{ 'on' if k == typ }} {{ 'dis' if t.stage > 1 }}" href="{{ url_for('admin.source_edit', type=k) }}" {% if k == typ %}aria-current="true"{% endif %} {% if t.stage > 1 %}aria-disabled="true"{% endif %}>
         <b style="font-size:14px">{{ t.label }}</b><small>{{ ('Stage ' ~ t.stage) if t.stage > 1 else t.hint }}</small></a>
     {% endfor %}
-    <a class="type" href="{{ url_for('admin.queue', sid=nav.builtins|selectattr('type','equalto','manual')|map(attribute='id')|first) }}"><b style="font-size:14px">Manual add</b><small>Paste a post or article</small></a>
+    <a class="type" href="{{ url_for('admin.new_post') }}"><b style="font-size:14px">New post</b><small>Write or paste a story yourself</small></a>
     </div>
   </fieldset>
   {% endif %}

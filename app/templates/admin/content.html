@@ -4,7 +4,7 @@
 {% block main %}
 {% set qs = request.args.to_dict() %}
 <div class="head"><div><h1>All content</h1><div class="sub">Every story and event, wherever it came from. Filter, search, and open anything to edit it.</div></div>
-{% set man = nav.builtins|selectattr('type', 'equalto', 'manual')|first %}{% if man %}<a class="btn dark" href="{{ url_for('admin.queue', sid=man.id) }}">Add something</a>{% endif %}</div>
+<a class="btn dark" href="{{ url_for('admin.new_post') }}">✏️ New post</a></div>
 
 <form method="get" class="card filters">
   <input type="hidden" name="status" value="{{ f.status }}"><input type="hidden" name="sort" value="{{ f.sort }}">

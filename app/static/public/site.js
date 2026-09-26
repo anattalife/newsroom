@@ -145,3 +145,24 @@
     wrap.closest("form").addEventListener("submit", () => { field.value = ed.innerHTML; });
   });
 })();
+
+// New post form: headline and summary grow as you type; subcategory follows the section
+(() => {
+  const grow = (el) => { el.style.height = "auto"; el.style.height = el.scrollHeight + 2 + "px"; };
+  document.querySelectorAll("textarea[data-grow]").forEach((el) => {
+    grow(el); el.addEventListener("input", () => grow(el)); window.addEventListener("resize", () => grow(el));
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter" && el.name === "headline") e.preventDefault(); });
+  });
+  const parent = document.querySelector("[data-subcat-parent]"), sub = document.querySelector("[data-subcat]");
+  if (!parent || !sub) return;
+  const wrap = document.querySelector("[data-subcat-wrap]");
+  parent.addEventListener("change", () => {
+    let any = false;
+    sub.querySelectorAll("option[data-cat]").forEach((o) => {
+      const on = o.dataset.cat === parent.value;
+      o.hidden = !on; o.disabled = !on; any = any || on;
+      if (!on && o.selected) sub.value = "";
+    });
+    if (wrap) wrap.hidden = !any;
+  });
+})();
