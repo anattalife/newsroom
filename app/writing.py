@@ -441,7 +441,15 @@ def fact_check(db, story, writer=None):
               "comment on style. Return ONLY one JSON object: "
               '{"flags": [{"text": "the exact words from the article", "problem": "what the material says, or that '
               'it says nothing about this"}]}. Return {"flags": []} if everything is supported.')
-    user = "ARTICLE\n\n" + util.text_only(story["body"]) + "\n\nMATERIAL\n\n" + material(dev, for_write=False)
+    mat = material(dev, for_write=False)
+    if mat == "(No material yet.)":  # written from scratch: there's nothing to check against
+        system = ("You help an editor check a local news article before it's published. There is no source material. "
+                  "List the specific statements an editor should confirm before publishing: names and their "
+                  "spellings, titles, numbers, dates, times, places, quotes and anything that could be wrong or "
+                  "unfair. Do not comment on style. Return ONLY one JSON object: "
+                  '{"flags": [{"text": "the exact words from the article", "problem": "what to confirm, and with '
+                  'whom"}]}. Return {"flags": []} if there is nothing to confirm.')
+    user = "ARTICLE\n\n" + util.text_only(story["body"]) + "\n\nMATERIAL\n\n" + mat
     out = parse_json(_ask(db, writer, system, user, "factcheck", 2000, cheap=True, story_id=story["id"])) or {}
     flags = []
     for f in out.get("flags") or []:
@@ -455,3 +463,34 @@ def fact_check(db, story, writer=None):
         fields["confidence"] = "medium"
     db.update("stories", story["id"], **fields)
     return flags
+
+
+TIGHTEN_NOTE = ("Tighten the writing: cut repetition and filler, shorten long sentences, and fix grammar, spelling and "
+                "punctuation. Keep every fact, name, number and quote exactly as it is. Don't add anything.")
+
+
+def suggest(db, story, writer=None):
+    """Three headline options and a summary to pick from. Changes nothing itself."""
+    system = "\n\n".join([
+        locked_rules(db),
+        "You write headlines for a local news site. Suggest three different headlines for the article: clear, "
+        "specific and true to the article, in sentence case, under 90 characters, no clickbait. Also write a one or "
+        "two sentence summary for under the headline.",
+        'Return ONLY one JSON object: {"headlines": ["…", "…", "…"], "summary": "…"}'])
+    user = f"CURRENT HEADLINE: {story['headline']}\n\nARTICLE:\n{util.text_only(story['body'])[:12000]}"
+    out = parse_json(_ask(db, writer, system, user, "suggest", 600, cheap=True, story_id=story["id"])) or {}
+    heads = [util.text_only(str(h), 200) for h in (out.get("headlines") or []) if str(h).strip()][:3]
+    return {"headlines": heads, "summary": util.text_only(str(out.get("summary") or ""), 400)}
+
+
+def draft_from_notes(db, story, notes, writer=None):
+    """The newsroom's 'Write a draft from notes & links': notes are the editor's own (vouched for); links are read."""
+    import re
+    dev = loads(story["dev"], {}) if isinstance(story["dev"], str) else (story["dev"] or {})
+    links = list(dict.fromkeys(re.findall(r"https?://[^\s<>\"']+", notes or "")))[:6]
+    text = re.sub(r"https?://[^\s<>\"']+", "", notes or "").strip()
+    dev["pasted"] = ((dev.get("pasted") or "") + "\n\n" + text).strip() if text else dev.get("pasted", "")
+    dev["links"] = list(dict.fromkeys(dev.get("links", []) + links))
+    story = {**story, "dev": dev}
+    db.update("stories", story["id"], dev=json.dumps(dev))
+    return write(db, story, writer=writer)

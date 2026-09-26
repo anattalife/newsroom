@@ -444,7 +444,10 @@ def my_orgs():
 
 @bp.route("/submit")
 def submit_choose():
-    return render_template("public/submit_choose.html")
+    """One way to post: the newsroom gets its editor (with the AI assistant); members get the same kind of form."""
+    if g.get("user"):
+        return redirect(url_for("admin.new_post"))
+    return redirect(url_for(".submit_form", kind="article"))
 
 
 @bp.route("/submit/new/<kind>", methods=["GET", "POST"])
@@ -460,6 +463,8 @@ def submit_form(kind=None, sub_id=None):
         if sub["status"] not in ("draft", "waiting", "sent_back"):
             flash("This one can't be changed any more.", "error")
             return redirect(url_for(".me"))
+    if kind == "facts" and not sub:
+        return redirect(url_for("public.tip"))  # quick facts go through the tip form now
     if kind not in ("article", "facts"):
         abort(404)
     error = None
@@ -475,7 +480,15 @@ def submit_form(kind=None, sub_id=None):
         headline = util.text_only(f.get("headline", ""), 200)
         body = util.clean_html(f.get("body", ""))[:60000]
         cats = settings.get(db, "categories") or []
-        org_id = f.get("org_id", type=int) if any(o["id"] == f.get("org_id", type=int) for o in my_orgs()) else None
+        org_ids = [o["id"] for o in my_orgs()]
+        by = f.get("by", "")
+        if by:  # one Byline choice: my name, a community member, or for my organization
+            want_org = int(by[4:]) if by.startswith("org:") and by[4:].isdigit() else None
+            org_id = want_org if want_org in org_ids else None
+            credit = 0 if by == "anon" else 1
+        else:
+            org_id = f.get("org_id", type=int) if f.get("org_id", type=int) in org_ids else None
+            credit = 0 if f.get("credit") == "0" else 1
         if problem:
             error = problem
         elif uploads and not f.get("photo_ok"):
@@ -500,7 +513,11 @@ def submit_form(kind=None, sub_id=None):
                       "links": json.dumps(links), "photos": json.dumps(photos),
                       "video": f.get("video", "").strip()[:500] or None,
                       "category": f.get("category") if f.get("category") in cats else "",
-                      "credit": 0 if f.get("credit") == "0" else 1, "org_id": org_id, "updated_at": now()}
+                      "subcategory": f.get("subcategory", "") if f.get("subcategory", "") in
+                      settings.subcategories(db, f.get("category", "")) else "",
+                      "summary": util.text_only(f.get("summary", ""), 400),
+                      "photo_credit": util.text_only(f.get("photo_credit", ""), 120),
+                      "credit": credit, "org_id": org_id, "updated_at": now()}
             if not sub:
                 sub_id = db.insert("submissions", member_id=m["id"], kind=kind, status="draft", created_at=now(), **fields)
             else:
@@ -525,7 +542,9 @@ def submit_form(kind=None, sub_id=None):
             return redirect(url_for(".submit_form", sub_id=sub_id))
     data = sub or {}
     draft_body = util.clean_html(f.get("body", "")) if request.method == "POST" else (sub["body"] if sub else "")
-    return render_template("public/submit_form.html", kind=kind, sub=sub, draft_body=draft_body, facts=loads(data.get("facts"), {}),
+    return render_template("public/submit_form.html" if kind == "article" else "public/submit_facts.html",
+                           kind=kind, sub=sub, draft_body=draft_body, facts=loads(data.get("facts"), {}),
+                           subcats=settings.subcategories(db),
                            photos=loads(data.get("photos"), []), links="\n".join(loads(data.get("links"), [])),
                            error=error, f=f, orgs=my_orgs(), labels=pipeline.FACT_LABELS,
                            max_photos=community.max_photos(db, m))

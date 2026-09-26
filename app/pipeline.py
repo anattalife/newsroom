@@ -328,14 +328,18 @@ def submission_story(db, sub, user_id=None, edited=False, trusted=False):
     cats = settings.get(db, "categories") or ["Local News"]
     sid = create_story(db, src["id"], {
         "headline": sub["headline"] or "Untitled", "body": util.clean_html(sub["body"]),
-        "summary": util.text_only(sub["body"], 200), "category": sub["category"] if sub["category"] in cats else cats[0],
+        "summary": util.text_only(sub["summary"] or "", 400) or util.text_only(sub["body"], 200),
+        "category": sub["category"] if sub["category"] in cats else cats[0],
         "byline": credit_name + (f" for {org['name']}" if org else ""), "confidence": "medium",
         "cites": [{"name": f"Written by {credit_name}", "url": "", "trust": "tip", "title": ""}]},
         user_id=user_id, member_id=m["id"], credit="byline", credit_public=sub["credit"], submission_id=sub["id"],
         org_id=sub["org_id"], edited_note=1 if edited else 0, trusted_publish=1 if trusted else 0,
+        subcategory=sub["subcategory"] if sub["subcategory"] in settings.subcategories(
+            db, sub["category"] if sub["category"] in cats else cats[0]) else "",
         image=photos[0] if photos else None, image_alt=sub["headline"] if photos else None,
         photo_member_id=m["id"] if photos else None,
-        photo_credit=(f"Photo: @{m['username']}" if sub["credit"] else "Photo: submitted") if photos else None,
+        photo_credit=(("Photo: " + sub["photo_credit"]) if sub["photo_credit"] else
+                      (f"Photo: @{m['username']}" if sub["credit"] else "Photo: submitted")) if photos else None,
         video=sub["video"] if util.video_embed(sub["video"]) else None)
     db.run("UPDATE submissions SET story_id=? WHERE id=?", (sid, sub["id"]))
     return sid

@@ -434,7 +434,8 @@ def media(name):
     if "/" in name or "\\" in name or name.startswith("."):
         abort(404)
     base = name[:-len("-share.jpg")] if name.endswith("-share.jpg") else None
-    allowed = (name == settings.get(db, "logo")
+    allowed = (bool(g.get("user"))  # the newsroom can see any upload (previews of drafts)
+               or name == settings.get(db, "logo")
                or db.val("SELECT 1 FROM stories WHERE image=? AND status='published'", (name,))
                or (base and db.val("SELECT 1 FROM stories WHERE image LIKE ? AND status='published'", (base + ".%",)))
                or db.val("SELECT 1 FROM members WHERE photo=? AND status!='banned'", (name,))

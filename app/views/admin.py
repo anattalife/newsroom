@@ -1,7 +1,7 @@
 """The newsroom dashboard: setup wizard, login, sources, approval pages, stories, tips, settings."""
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import secrets as pysecrets
 
 from flask import (Blueprint, abort, flash, g, jsonify, redirect, render_template, request, send_file, session,
@@ -681,6 +681,38 @@ def story_callit(sid):
     return redirect(url_for(".story", sid=sid) + "#callit")
 
 
+@bp.route("/story/<int:sid>/preview")
+@login_required()
+def preview(sid):
+    """The story as readers will see it, before it's published (the newsroom only)."""
+    from .public import public_ctx
+    db = g.db
+    s = story_row(db.one("SELECT * FROM stories WHERE id=?", (sid,))) or abort(404)
+    s["public_cites"] = [c for c in s["cites"] if c.get("trust") != "tip"
+                         and str(c.get("url", "")).startswith(("http://", "https://"))]
+    s["published_at"] = s["published_at"] or now()
+    org = db.one("SELECT * FROM orgs WHERE id=? AND status='approved'", (s["org_id"],)) if s["org_id"] else None
+    return render_template("public/article.html", s=s, related=[], sort="top", org=org, org_more=[], callit=None,
+                           comments=[], comments_on=False, voted=False, can_links=False, preview=True, **public_ctx())
+
+
+@bp.route("/post/new")
+@login_required()
+def new_post():
+    """A blank post in the editor. An untouched blank from the last day is reused, so they don't pile up."""
+    db = g.db
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(timespec="seconds")
+    sid = db.val("SELECT id FROM stories WHERE status='draft' AND kind='story' AND headline='Untitled' AND body='' "
+                 "AND source_id IS NULL AND member_id IS NULL AND updated_by=? AND created_at >= ?", (uid(), cutoff))
+    if not sid:
+        cats = settings.get(db, "categories") or ["Local News"]
+        t = now()
+        sid = db.insert("stories", kind="story", status="draft", headline="Untitled", body="", category=cats[0],
+                        confidence="high", dev="{}", updated_by=uid(), created_at=t, updated_at=t)
+        util.activity(db, uid(), "new post", f"story:{sid}")
+    return redirect(url_for(".story", sid=sid))
+
+
 @bp.route("/story/<int:sid>", methods=["GET", "POST"])
 @login_required()
 def story(sid):
@@ -723,7 +755,8 @@ def _story_post(db, s):
     sid = s["id"]
     back = redirect(url_for(".story", sid=sid))
     if (action in ("approve", "schedule", "unpublish", "reject", "restore", "factcheck", "redevelop", "retry_social",
-                   "use_photo", "revise", "undo") or s["status"] in ("published", "scheduled")) and not can("editor"):
+                   "use_photo", "revise", "undo", "ai_draft", "ai_tighten", "ai_headlines")
+            or s["status"] in ("published", "scheduled")) and not can("editor"):
         abort(403, "Reviewers can edit drafts but not publish or change live stories. Ask an editor.")
     if action == "restore" and s["status"] != "rejected":
         abort(400)
@@ -804,6 +837,36 @@ def _story_post(db, s):
         except ai.AIUnavailable as e:
             flash(str(e), "error")
         return back
+    if action in ("ai_draft", "ai_tighten", "ai_headlines"):
+        fresh = story_row(db.one("SELECT * FROM stories WHERE id=?", (sid,)))
+        try:
+            if action == "ai_draft":
+                notes = f.get("ai_notes", "").strip()
+                if len(notes) < 20:
+                    flash("Paste some notes or links for the AI to write from.", "error")
+                    return back
+                if s["status"] == "published":
+                    flash("This story is already live. Use “Tell the AI what to change” instead.", "error")
+                    return back
+                writing.draft_from_notes(db, fresh, notes)
+                flash("Draft written from your notes. Read it through: it says only what the notes and links say.")
+            elif action == "ai_tighten":
+                if len(util.text_only(fresh["body"])) < 40:
+                    flash("Write the story first, then tighten it.", "error")
+                    return back
+                ok = writing.revise(db, fresh, writing.TIGHTEN_NOTE)
+                flash("Tightened. Undo puts it back." if ok else "The AI didn't return a version. Try again.",
+                      None if ok else "error")
+            else:
+                if len(util.text_only(fresh["body"])) < 40:
+                    flash("Write the story first, then ask for headlines.", "error")
+                    return back
+                dev = fresh["dev"] or {}
+                dev["suggest"] = writing.suggest(db, fresh)
+                db.update("stories", sid, dev=json.dumps(dev))
+        except ai.AIUnavailable as e:
+            flash(str(e), "error")
+        return redirect(url_for(".story", sid=sid) + ("#ai" if action == "ai_headlines" else ""))
     if action in ("revise", "undo"):
         if action == "undo":
             writing.undo_revision(db, db.one("SELECT * FROM stories WHERE id=?", (sid,)))
@@ -855,6 +918,9 @@ def _story_post(db, s):
             db.update("stories", sid, image=graphics.headline_card(db, {**s, **fields}), image_alt=fields["headline"])
         flash("Saved.")
     elif action in ("approve", "schedule"):
+        if fields["headline"] == "Untitled" or not util.text_only(fields["body"]).strip():
+            flash("Add a headline and the story before publishing.", "error")
+            return back
         if not all_checked:
             flash("Tick every item on the verification checklist before approving.", "error")
             return back
@@ -870,6 +936,11 @@ def _story_post(db, s):
             pipeline.publish(db, sid, user_id=uid())
             flash("Published.")
         return redirect(url_for(".queue", sid=s["source_id"]) if s["source_id"] else url_for(".queue"))
+    elif action == "reject" and s["headline"] == "Untitled" and not s["source_id"] and not s["member_id"] \
+            and fields["headline"] == "Untitled":
+        db.run("DELETE FROM stories WHERE id=?", (sid,))       # a blank new post: just throw it away
+        flash("Draft deleted.")
+        return redirect(url_for(".content"))
     elif action == "reject":
         pipeline.unpublish(db, sid, reject=True, reason=util.text_only(f.get("reject_reason", ""), 300))
         util.activity(db, uid(), "rejected", f"story:{sid}", fields["headline"])

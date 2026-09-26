@@ -9,7 +9,7 @@ from . import db as dbm
 from . import settings, util
 from .security import can, check_csrf, csrf_token, flask_secret_key
 
-VERSION = "2.13.1"
+VERSION = "2.14.2"
 
 
 def create_app():

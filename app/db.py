@@ -327,6 +327,8 @@ def connect():
 
 # columns added after the first release (safe to run every start)
 MIGRATIONS = [
+    ("submissions", "summary TEXT NOT NULL DEFAULT ''"), ("submissions", "subcategory TEXT NOT NULL DEFAULT ''"),
+    ("submissions", "photo_credit TEXT NOT NULL DEFAULT ''"),
     ("badges", "tiers TEXT NOT NULL DEFAULT ''"), ("badges", "rarity TEXT NOT NULL DEFAULT 'common'"),
     ("badges", "secret INTEGER NOT NULL DEFAULT 0"), ("badges", "hint TEXT NOT NULL DEFAULT ''"),
     ("member_badges", "tier INTEGER NOT NULL DEFAULT 1"), ("member_badges", "shown INTEGER NOT NULL DEFAULT 1"),
