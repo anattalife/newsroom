@@ -306,6 +306,25 @@ CREATE TABLE IF NOT EXISTS game_confirms (
     score TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (game_id, member_id)
 );
 
+-- the Community Board: lost & found, garage sales, free stuff, questions for neighbors
+CREATE TABLE IF NOT EXISTS board_posts (
+    id INTEGER PRIMARY KEY, member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,                               -- lost | garage | sale | free | wanted | ask
+    title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '', town TEXT NOT NULL DEFAULT '', when_text TEXT NOT NULL DEFAULT '',
+    photo TEXT, phone TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'open',              -- open | done | held | removed
+    done_at TEXT, renewed INTEGER NOT NULL DEFAULT 0, expires_at TEXT NOT NULL, pinned_until TEXT,
+    reply_count INTEGER NOT NULL DEFAULT 0, social TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS board_posts_live ON board_posts(status, expires_at);
+CREATE TABLE IF NOT EXISTS board_replies (
+    id INTEGER PRIMARY KEY, post_id INTEGER NOT NULL REFERENCES board_posts(id) ON DELETE CASCADE,
+    member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    body TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'visible',   -- visible | held | hidden | deleted
+    hold_reason TEXT, upvotes INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS board_replies_post ON board_replies(post_id, status);
 """
 
 

@@ -8,7 +8,7 @@ from xml.sax.saxutils import escape
 from flask import Blueprint, Response, abort, flash, g, redirect, render_template, request, send_file, session, url_for
 from itsdangerous import BadSignature, URLSafeSerializer
 
-from .. import callit, community, graphics, settings, specials, sports, util, weather
+from .. import board, callit, community, graphics, settings, specials, sports, util, weather
 from ..db import UPLOADS, loads, now, story_row
 from ..security import flask_secret_key, ip_hash, rate_limited
 
@@ -199,7 +199,7 @@ def home():
         strip = weather.view(db, wc["weather_locations"][0])
         strip["loc"] = wc["weather_locations"][0]
     return render_template(
-        "public/home.html", top=top, latest=stories[1:8], more=stories[8:14], wx=strip,
+        "public/home.html", board_posts=board.listing(db, limit=4), top=top, latest=stories[1:8], more=stories[8:14], wx=strip,
         events=calendar_items(6, game_days=3, max_games=3) if settings.get(db, "home_show_events") else [],
         national=published("scope!='local'", limit=5, order="featured DESC, published_at DESC")
         if settings.get(db, "home_show_national") else [],
@@ -440,7 +440,8 @@ def media(name):
                or (base and db.val("SELECT 1 FROM stories WHERE image LIKE ? AND status='published'", (base + ".%",)))
                or db.val("SELECT 1 FROM members WHERE photo=? AND status!='banned'", (name,))
                or db.val("SELECT 1 FROM orgs WHERE logo=? AND status='approved'", (name,))
-               or db.val("SELECT 1 FROM specials WHERE image=? AND status='live'", (name,)))
+               or db.val("SELECT 1 FROM specials WHERE image=? AND status='live'", (name,))
+               or db.val("SELECT 1 FROM board_posts WHERE photo=? AND status IN ('open','done')", (name,)))
     p = UPLOADS / name
     if not allowed or not p.exists():
         abort(404)

@@ -351,9 +351,9 @@ def default_social(db, s):
     from . import social
     if s["wire"]:
         return {}
-    chosen = (settings.get(db, "social_defaults") or {}).get(s["category"])
-    if chosen is None:
-        return {}
+    chosen = list((settings.get(db, "social_defaults") or {}).get(s["category"]) or [])
+    if s.get("org_id") and "facebook" not in chosen:
+        chosen.append("facebook")  # Community Partner posts always go out on the Facebook page
     text = s["social_text"] or s["summary"] or s["headline"]
     return {p: {"on": True, "text": text} for p in chosen if social.connected(db, p)}
 

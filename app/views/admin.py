@@ -34,6 +34,7 @@ def nav_counts():
             "source_problems": sum(1 for r in rows if not r["builtin"] and r["enabled"] and r["last_error"]), "tips_new": tips_new, "subs": subs,
             "developing": db.val("SELECT COUNT(*) FROM stories WHERE status='developing'"),
             "moderation": db.val("SELECT COUNT(*) FROM comments WHERE status='held'")
+            + db.val("SELECT COUNT(*) FROM board_replies WHERE status='held'")
             + db.val("SELECT COUNT(DISTINCT target || target_id) FROM flags WHERE status='open'"),
             "partners": db.val("SELECT COUNT(*) FROM orgs WHERE status='pending' OR (status='approved' AND needs_look=1)"),
             "callit": db.val("SELECT COUNT(*) FROM predictions WHERE story_id IS NOT NULL AND status='open' "
@@ -713,6 +714,14 @@ def new_post():
     return redirect(url_for(".story", sid=sid))
 
 
+def _share_shown(db, s):
+    """What the Share box shows: what's been chosen, or (not published yet) where it will go by default."""
+    share = s["social"] if isinstance(s["social"], dict) else loads(s["social"], {})
+    if not share and s["status"] != "published" and s["kind"] == "story" and s.get("org_id"):
+        return pipeline.default_social(db, s)
+    return share
+
+
 @bp.route("/story/<int:sid>", methods=["GET", "POST"])
 @login_required()
 def story(sid):
@@ -735,7 +744,7 @@ def story(sid):
                            categories=settings.get(db, "categories"), templates=WD.TEMPLATES,
                            subcats=settings.subcategories(db), call=_story_callit(db, sid),
                            body_marked=util.mark_phrases(s["body"], fc) if fc else s["body"],
-                           platforms=platforms, share=s["social"], limits=social.LIMITS,
+                           platforms=platforms, share=_share_shown(db, s), limits=social.LIMITS,
                            site_url_set=bool(settings.get(db, "site_url")),
                            publish_local=(util.local(db, s["publish_at"]).strftime("%Y-%m-%dT%H:%M")
                                           if s["publish_at"] else ""),
@@ -786,8 +795,8 @@ def _story_post(db, s):
             text = util.text_only(f.get("share_text_" + p, ""), 2000)
             if f.get("share_" + p):
                 share[p] = {**cur, "on": True, "text": text}
-            elif cur:
-                share[p] = {**cur, "on": False, "text": text}
+            elif cur or (s.get("org_id") and p == "facebook"):
+                share[p] = {**cur, "on": False, "text": text}  # unticked on purpose: don't share by default
             if s["status"] == "published" and share.get(p, {}).get("on"):
                 share[p]["status"] = "pending"  # ticked after publishing: post it now
         fields["social"] = json.dumps(share)

@@ -86,6 +86,8 @@ def cycle(db, writer=None):
         from . import social
         social.refresh_threads(db)
         social.post_pending(db)
+        from . import board
+        board.share_pending(db)
     except Exception:
         log.exception("social posting failed")
     try:

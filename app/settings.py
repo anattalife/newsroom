@@ -26,9 +26,10 @@ OLD_DEFAULT_CATEGORIES = ["Local News", "Public Safety", "Government", "Schools"
 DEFAULT_CATEGORIES = ["Local News", "Government & Schools", "Public Safety", "Faith & Churches",
                       "Obituaries & Remembrances", "Sports", "Business & Openings", "Food & Specials", "Farm & Rural",
                       "Arts & Entertainment", "Health", "Clubs & Nonprofits", "Youth & Education", "Seniors",
-                      "Outdoors", "Weather", "Events", "National & World"]
+                      "Outdoors", "Local History", "Weather", "Events", "National & World"]
 # Shown on each category page to invite organizations to share their news (owner can edit)
 CATEGORY_INVITES = {
+    "Local History": "Historical societies, museums and anyone with an old photo or a story about the county's past: share it here.",
     "Government & Schools": "School districts, township clerks and the library: share meeting results, calendars and announcements.",
     "Public Safety": "Sheriff, police, fire and EMS: share releases, safety tips and road closures.",
     "Faith & Churches": "Churches and ministries: share service times, new pastors, community meals and events.",
@@ -118,8 +119,6 @@ SECTIONS = [
     ]},
     {"id": "review", "title": "Review and publishing", "fields": [
         F("byline", "Default byline", default="Staff"),
-        F("ai_disclosure", "AI disclosure (end of every article)", "textarea",
-          default="This story was drafted with AI assistance from public sources and reviewed by an editor before publication."),
         F("correction_label", "Correction heading", default="Correction"),
         F("edited_note_text", "Note on member articles you edited", default="Edited by the newsroom."),
     ]},
@@ -224,7 +223,8 @@ LATER = [
 ]
 # stored under other keys and edited on their own pages, but known here so get() has defaults
 # Subcategories inside a section, e.g. Sports → College. The newsroom adds and removes them.
-SUBCATEGORIES = {"Sports": ["Middle School", "JV/Varsity", "College"]}
+HISTORY_SUBS = ["Then & Now", "Old Photos", "People & Places", "This Week in History"]
+SUBCATEGORIES = {"Sports": ["Middle School", "JV/Varsity", "College"], "Local History": HISTORY_SUBS}
 
 
 def subcategories(db, category=None):
@@ -289,6 +289,22 @@ def migrate(db):
             community.sync_comment_points(db, c, backfill=True)  # comments and replies now earn points
         community.recalc_all(db)  # fill in Work and Social points from what's already been earned
         put(db, "_migrated_points_split", True)
+    if not db.one("SELECT 1 FROM settings WHERE key='_migrated_local_history'"):
+        cats = get(db, "categories") or []
+        if "Local History" not in cats:  # add the new section before Weather (or at the end)
+            at = cats.index("Weather") if "Weather" in cats else len(cats)
+            put(db, "categories", cats[:at] + ["Local History"] + cats[at:])
+        subs = get(db, "subcategories") or {}
+        if "Local History" not in subs:
+            put(db, "subcategories", {**subs, "Local History": HISTORY_SUBS})
+        invites = get(db, "category_invites") or {}
+        if "Local History" not in invites:
+            put(db, "category_invites", {**invites, "Local History": CATEGORY_INVITES["Local History"]})
+        put(db, "_migrated_local_history", True)
+    if not db.one("SELECT 1 FROM settings WHERE key='_migrated_staff_out'"):
+        from . import community
+        community.remove_staff_from_games(db)  # staff never compete with readers
+        put(db, "_migrated_staff_out", True)
     stored = db.one("SELECT value FROM settings WHERE key='categories'")
     if stored and json.loads(stored["value"]) == OLD_DEFAULT_CATEGORIES:
         put(db, "categories", DEFAULT_CATEGORIES)  # still the untouched old list: switch to the new one

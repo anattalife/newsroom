@@ -207,7 +207,28 @@ def moderation():
             db.run("UPDATE flags SET status='resolved', outcome=? WHERE target='comment' AND target_id=? AND status='open'",
                    ("kept" if a == "approve" else "removed", cid))
             community.recount_comments(db, c["story_id"])
-        elif a in ("dismiss", "correction") and f.get("target") in ("story", "comment"):
+        elif a in ("rapprove", "rhide", "rdelete") and f.get("rid", type=int):
+            from .. import board
+            rid = f.get("rid", type=int)
+            r = db.one("SELECT * FROM board_replies WHERE id=?", (rid,)) or abort(404)
+            db.update("board_replies", rid, status={"rapprove": "visible", "rhide": "hidden", "rdelete": "deleted"}[a],
+                      **({"body": ""} if a == "rdelete" else {}))
+            db.run("UPDATE flags SET status='resolved', outcome=? WHERE target='breply' AND target_id=? AND "
+                   "status='open'", ("kept" if a == "rapprove" else "removed", rid))
+            board.recount(db, r["post_id"])
+            if a == "rapprove" and r["status"] == "held":  # tell the poster now that the reply shows
+                p = db.one("SELECT member_id, title FROM board_posts WHERE id=?", (r["post_id"],))
+                if p and p["member_id"] != r["member_id"]:
+                    who = db.val("SELECT username FROM members WHERE id=?", (r["member_id"],))
+                    community.notice(db, p["member_id"], f"@{who} replied to your board post “{p['title'][:80]}”.",
+                                     f"/board/{r['post_id']}#r{rid}", kind="reply")
+        elif a in ("bkeep", "bremove") and f.get("bid", type=int):
+            bid = f.get("bid", type=int)
+            db.run("UPDATE board_posts SET status=?, updated_at=? WHERE id=? AND status IN ('open','held')",
+                   ("open" if a == "bkeep" else "removed", now(), bid))
+            db.run("UPDATE flags SET status='resolved', outcome=? WHERE target='board' AND target_id=? AND "
+                   "status='open'", ("kept" if a == "bkeep" else "removed", bid))
+        elif a in ("dismiss", "correction") and f.get("target") in ("story", "comment", "board", "breply"):
             db.run("UPDATE flags SET status='resolved', outcome=? WHERE target=? AND target_id=? AND status='open'",
                    ("correction" if a == "correction" else "dismissed", f["target"], f.get("target_id", type=int)))
             if a == "correction":
@@ -228,7 +249,13 @@ def moderation():
                  "AS reasons, GROUP_CONCAT(f.note, ' | ') AS notes, MIN(f.created_at) AS first_at FROM flags f "
                  "WHERE f.status='open' GROUP BY f.target, f.target_id ORDER BY weight DESC LIMIT 200")
     for fl in flags:
-        if fl["target"] == "comment":
+        if fl["target"] == "board":
+            fl["b"] = db.one("SELECT p.*, m.username FROM board_posts p JOIN members m ON m.id=p.member_id "
+                             "WHERE p.id=?", (fl["target_id"],))
+        elif fl["target"] == "breply":
+            fl["r"] = db.one("SELECT r.*, m.username, p.title FROM board_replies r JOIN members m ON m.id=r.member_id "
+                             "JOIN board_posts p ON p.id=r.post_id WHERE r.id=?", (fl["target_id"],))
+        elif fl["target"] == "comment":
             fl["c"] = db.one("SELECT c.*, m.username, s.headline, s.slug FROM comments c JOIN members m ON "
                              "m.id=c.member_id JOIN stories s ON s.id=c.story_id WHERE c.id=?", (fl["target_id"],))
         else:
@@ -236,7 +263,9 @@ def moderation():
     recent = db.q("SELECT c.*, m.username, s.headline, s.slug FROM comments c JOIN members m ON m.id=c.member_id "
                   "JOIN stories s ON s.id=c.story_id WHERE c.status='visible' ORDER BY c.id DESC LIMIT 100") \
         if tab == "recent" else []
-    return render_template("admin/moderation.html", tab=tab, held=held, flags=flags, recent=recent)
+    bheld = db.q("SELECT r.*, m.username, m.points, p.title FROM board_replies r JOIN members m ON m.id=r.member_id "
+                 "JOIN board_posts p ON p.id=r.post_id WHERE r.status='held' ORDER BY r.id LIMIT 200")
+    return render_template("admin/moderation.html", tab=tab, held=held, flags=flags, recent=recent, bheld=bheld)
 
 
 # ── badges ──────────────────────────────────────────────

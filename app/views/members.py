@@ -599,10 +599,12 @@ def flag():
     if problem:
         flash(problem, "error")
         return back()
-    if target not in ("story", "comment") or f.get("reason") not in reasons:
+    if target not in ("story", "comment", "board", "breply") or f.get("reason") not in reasons:
         abort(400)
-    exists = db.val("SELECT 1 FROM stories WHERE id=? AND status='published'" if target == "story"
-                    else "SELECT 1 FROM comments WHERE id=?", (tid,))
+    exists = db.val({"story": "SELECT 1 FROM stories WHERE id=? AND status='published'",
+                     "comment": "SELECT 1 FROM comments WHERE id=?",
+                     "board": "SELECT 1 FROM board_posts WHERE id=? AND status='open'",
+                     "breply": "SELECT 1 FROM board_replies WHERE id=?"}[target], (tid,))
     if not exists:
         abort(404)
     if rate_limited(db, f"flag:{g.member['id']}", 20, 86400):
@@ -614,6 +616,9 @@ def flag():
     community.apply_flag_threshold(db, target, tid)
     if target == "comment":
         community.recount_comments(db, db.val("SELECT story_id FROM comments WHERE id=?", (tid,)))
+    elif target == "breply":
+        from .. import board
+        board.recount(db, db.val("SELECT post_id FROM board_replies WHERE id=?", (tid,)))
     if settings.get(db, "notify_flags"):
         notify_owner(f"Flagged: {reasons[f['reason']]}", f"@{g.member['username']} flagged a {target}.\n\n"
                                                           f"{base_url()}/admin/community/flags")

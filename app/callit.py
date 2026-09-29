@@ -74,6 +74,8 @@ def create(db, story_id, question, kind, closes_at, unit="", lo=None, hi=None, s
 
 def guess(db, p, member, value):
     """Lock in one guess. Returns the guess row."""
+    if member.get("staff_user_id"):
+        raise ValueError("Call It is for readers, so the newsroom sits this one out.")
     if p["closed"]:
         raise ValueError("Guessing has closed for this one.")
     if db.val("SELECT 1 FROM guesses WHERE prediction_id=? AND member_id=?", (p["id"], member["id"])):
@@ -142,7 +144,7 @@ def resolve(db, p, answer, announce=True):
     """Score everyone. Safe to run again with a corrected answer: earlier points are taken back first."""
     _clear(db, p)
     rows = db.q("SELECT g.*, m.username FROM guesses g JOIN members m ON m.id=g.member_id WHERE g.prediction_id=? "
-                "ORDER BY g.id", (p["id"],))
+                "AND m.staff_user_id IS NULL ORDER BY g.id", (p["id"],))
     results = []  # (guess, rank, points, won, exact)
     if p["kind"] == "number":
         answer_num = float(answer)

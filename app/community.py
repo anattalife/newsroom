@@ -265,8 +265,8 @@ def badge_value(db, mid, b):
 
 def check_badges(db, mid, quiet=False):
     """Award new badges and raise tiers. Returns the badges that changed."""
-    if not mid:
-        return []
+    if not mid or is_staff(db, mid):
+        return []  # staff get only the Staff badge
     got = []
     held = {r["badge_id"]: r["tier"] for r in db.q("SELECT badge_id, tier FROM member_badges WHERE member_id=?", (mid,))}
     for b in db.q("SELECT * FROM badges WHERE active=1 AND rule!='manual'"):
@@ -386,8 +386,9 @@ def sync_comment_points(db, c, backfill=False):
 
 
 def award(db, mid, points, reason, ref):
-    """Give points once per (member, reason, ref). Returns True if newly recorded."""
-    if not mid:
+    """Give points once per (member, reason, ref). Returns True if newly recorded.
+    The newsroom's own profiles never earn points, so they stay off every leaderboard and crown."""
+    if not mid or is_staff(db, mid):
         return False
     cur = db.run("INSERT OR IGNORE INTO points_log(member_id,points,reason,ref,created_at) VALUES(?,?,?,?,?)",
                  (mid, int(points), reason, ref, now()))
@@ -474,6 +475,9 @@ def on_featured(db, story, quiet=False):
 
 # ── votes ──────────────────────────────────────────────
 def author_of(db, target, tid):
+    if target == "breply":
+        r = db.one("SELECT member_id FROM board_replies WHERE id=? AND status='visible'", (tid,))
+        return (r or {}).get("member_id"), r is not None
     if target == "story":
         r = db.one("SELECT member_id, photo_member_id FROM stories WHERE id=? AND status='published'", (tid,))
         return (r or {}).get("member_id"), r is not None
@@ -483,14 +487,14 @@ def author_of(db, target, tid):
 
 def toggle_vote(db, voter, target, tid):
     """Upvote or take it back. Returns (voted_now, new_count) or (None, 0) if not allowed."""
-    if target not in ("story", "comment"):
+    if target not in ("story", "comment", "breply"):
         return None, 0
     author, exists = author_of(db, target, tid)
     if not exists or author == voter["id"]:
         return None, 0
     if target == "story" and db.val("SELECT org_id FROM stories WHERE id=?", (tid,)):
         author = None  # an organization's story: votes count, but earn no one points
-    table = "stories" if target == "story" else "comments"
+    table = {"story": "stories", "comment": "comments", "breply": "board_replies"}[target]
     ref = f"{target}:{tid}:by:{voter['id']}"
     reason = "upvote" if target == "story" else "comment_upvote"
     with db.tx():
@@ -564,17 +568,23 @@ def flag_weight(db, m):
 
 
 def apply_flag_threshold(db, target, tid):
-    """Hide a comment once enough (weighted) flags arrive, for the newsroom to look at."""
+    """Hide a comment, board post or board reply once enough (weighted) flags arrive, for the newsroom to look at."""
     limit = pts(db, "flag_hide")
-    if target != "comment" or not limit:
+    if target not in ("comment", "board", "breply") or not limit:
         return False
-    total = db.val("SELECT COALESCE(SUM(weight),0) FROM flags WHERE target='comment' AND target_id=? AND status='open'",
-                   (tid,))
-    if total >= limit:
+    total = db.val("SELECT COALESCE(SUM(weight),0) FROM flags WHERE target=? AND target_id=? AND status='open'",
+                   (target, tid))
+    if total < limit:
+        return False
+    if target == "comment":
         db.run("UPDATE comments SET status='held', hold_reason='Flagged by readers' WHERE id=? AND status='visible'",
                (tid,))
-        return True
-    return False
+    elif target == "breply":
+        db.run("UPDATE board_replies SET status='held', hold_reason='Flagged by readers' WHERE id=? AND "
+               "status='visible'", (tid,))
+    else:
+        db.run("UPDATE board_posts SET status='held' WHERE id=? AND status='open'", (tid,))
+    return True
 
 
 def week_key(d):
@@ -629,6 +639,28 @@ def comment_tree(db, story_id, viewer=None, sort="top"):
             out.append(k)
         return out
     return build(None)
+
+
+def is_staff(db, mid):
+    return bool(db.val("SELECT staff_user_id FROM members WHERE id=?", (mid,)))
+
+
+def remove_staff_from_games(db):
+    """Take back anything competitive a staff profile earned: points, badges (except Staff), crowns, Call It spots."""
+    from . import crowns
+    staff = [r["id"] for r in db.q("SELECT id FROM members WHERE staff_user_id IS NOT NULL")]
+    if not staff:
+        return
+    marks = ",".join("?" * len(staff))
+    db.run(f"DELETE FROM points_log WHERE member_id IN ({marks})", staff)
+    db.run(f"UPDATE members SET points=0, work_points=0, social_points=0 WHERE id IN ({marks})", staff)
+    db.run(f"DELETE FROM member_badges WHERE member_id IN ({marks}) AND badge_id NOT IN "
+           "(SELECT id FROM badges WHERE slug='staff')", staff)
+    db.run(f"DELETE FROM guesses WHERE member_id IN ({marks}) AND prediction_id IN "
+           "(SELECT id FROM predictions WHERE status='open')", staff)
+    db.run(f"UPDATE guesses SET points=0, won=0, rank=NULL WHERE member_id IN ({marks})", staff)
+    db.run(f"DELETE FROM shoutouts WHERE member_id IN ({marks})", staff)
+    crowns.refresh_all(db)
 
 
 def staff_member(db, user):

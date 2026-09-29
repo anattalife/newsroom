@@ -9,7 +9,7 @@ from . import db as dbm
 from . import settings, util
 from .security import can, check_csrf, csrf_token, flask_secret_key
 
-VERSION = "2.14.2"
+VERSION = "2.15.0"
 
 
 def create_app():
@@ -108,8 +108,10 @@ def create_app():
     from .views.members import bp as members_bp
     from .views.public import bp as public_bp
     from .views.sports import bp as sports_bp
+    from .views.board import bp as board_bp
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(public_bp)
     app.register_blueprint(members_bp)
     app.register_blueprint(sports_bp)
+    app.register_blueprint(board_bp)
     return app
