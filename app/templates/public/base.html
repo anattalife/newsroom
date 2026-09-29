@@ -50,6 +50,7 @@
       <a href="{{ url_for('public.national_world') }}" {% if list_tab in ('nw', 'national', 'world') %}aria-current="page"{% endif %}>National &amp; World</a>
       <a href="{{ url_for('sports.scoreboard') }}" {% if tab == 'sports' %}aria-current="page"{% endif %}>Scores</a>
       <a href="{{ url_for('public.specials_page') }}" {% if tab == 'specials' %}aria-current="page"{% endif %}>Today's specials</a>
+      <a href="{{ url_for('board.board_page') }}" {% if tab == 'board' %}aria-current="page"{% endif %}>Community board</a>
       <a href="{{ url_for('members.leaderboard') }}" {% if tab == 'leaderboard' %}aria-current="page"{% endif %}>Leaderboard</a>
       {% if S.tips_enabled %}<a href="{{ url_for('public.tip') }}">Send a tip</a>{% endif %}
       {% if not member %}<a href="{{ url_for('members.join') }}"><b>Join free</b></a>{% endif %}
@@ -74,8 +75,7 @@
   <a href="{{ url_for('public.home') }}" {% if tab == 'news' %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 5h13v14H6a2 2 0 0 1-2-2z"/><path d="M17 8h3v9a2 2 0 0 1-2 2"/><path d="M8 9h5M8 13h5"/></svg>News</a>
   <a href="{{ url_for('public.top') }}" {% if list_tab == 'top' %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 4l7 8h-4v8H9v-8H5z"/></svg>Top</a>
   <a href="{{ url_for('members.submit_choose') }}" {% if tab == 'submit' or tab == 'tip' %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"/></svg>Submit</a>
-  {% if weather_on %}<a href="{{ url_for('public.weather_page') }}" {% if cat_name == 'Weather' %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.5 1.5A3.3 3.3 0 0 0 7 18z"/></svg>Weather</a>
-  {% else %}<a href="{{ url_for('sports.scoreboard') }}" {% if tab == 'sports' %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"/></svg>Scores</a>{% endif %}
+  <a href="{{ url_for('board.board_page') }}" {% if tab == 'board' %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/></svg>Board</a>
   {% if user %}<a href="{{ url_for('admin.overview') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Newsroom</a>
   {% else %}<a href="{{ url_for('members.me') if member else url_for('members.login') }}" {% if tab == 'me' %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>{{ 'Me' if member else 'Log in' }}</a>{% endif %}
 </nav>

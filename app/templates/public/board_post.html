@@ -1,0 +1,58 @@
+{% extends "public/base.html" %}
+{% from "public/_macros.html" import vote, flagform, who with context %}
+{% set tab = 'board' %}
+{% block title %}{{ p.title }} · Community Board · {{ S.site_name }}{% endblock %}
+{% block og %}<meta property="og:site_name" content="{{ S.site_name }}"><meta property="og:type" content="article"><meta property="og:title" content="{{ p.k.icon }} {{ p.title }}"><meta property="og:description" content="{{ p.body|truncate(200) }}">{% if p.photo %}<meta property="og:image" content="{{ url_for('public.media', name=p.photo, _external=True) }}">{% endif %}{% endblock %}
+{% block content %}
+<div class="wrap bd-wrap bd-one">
+  <a class="meta" href="{{ url_for('board.board_page') }}">← Community Board</a>
+  {% if p.status == 'held' %}<div class="flash warn">This post is hidden while the newsroom takes a look.</div>{% endif %}
+  {% if p.status == 'removed' %}<div class="flash warn">This post has been taken down.</div>{% endif %}
+  {% if p.expired %}<div class="flash warn">This post came down {{ p.expires_at|ago }}.{% if owner and p.can_renew %} You can renew it once below.{% endif %}</div>{% endif %}
+  <span class="bd-chip k-{{ p.kind }}">{{ p.k.icon }} {{ p.k.label }}</span>
+  <h1 class="bd-title">{% if p.status == 'done' %}✅ {{ p.k.done }}: {% endif %}{{ p.title }}</h1>
+  {% if p.when_text %}<p class="bd-when">🗓️ {{ p.when_text }}</p>{% endif %}
+  {% if p.photo %}<img class="bd-photo" src="{{ media_url(p.photo) }}" alt="Photo for: {{ p.title }}">{% endif %}
+  {% if p.body %}<div class="bd-body">{{ p.body|plain }}</div>{% endif %}
+  <p class="meta">{% if p.town %}{{ p.town }} · {% endif %}<a href="{{ url_for('members.profile', username=p.username) }}">@{{ p.username }}</a> · {{ p.created_at|ago }}{% if p.status == 'open' and not p.expired %} · comes down {{ p.expires_at|localdate(false) }}{% endif %}</p>
+  {% if p.phone %}{% if member %}<p class="bd-phone">📞 <a href="tel:{{ p.phone }}">{{ p.phone }}</a></p>{% else %}<p class="meta"><a href="{{ url_for('members.login', next=request.path) }}" style="text-decoration:underline">Log in</a> to see the phone number.</p>{% endif %}{% endif %}
+
+  {% if owner and p.status in ('open', 'done') %}
+  <form method="post" action="{{ url_for('board.board_manage', pid=p.id) }}" class="bd-owner">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    {% if p.status == 'open' and not p.expired %}<button class="btn brand" name="action" value="done">Mark as {{ p.k.done|lower }}</button>{% endif %}
+    {% if p.can_renew %}<button class="btn" name="action" value="renew">Renew for 14 more days</button>{% endif %}
+    <button class="btn" name="action" value="delete" data-confirm="Take this post down?">Take it down</button>
+  </form>
+  {% endif %}
+  {% if staff and not owner %}
+  <form method="post" action="{{ url_for('board.board_manage', pid=p.id) }}" class="bd-owner">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><span class="meta">Newsroom:</span>
+    {% if p.status == 'removed' or p.status == 'held' %}<button class="btn" name="action" value="restore">Put it back</button>{% endif %}
+    {% if p.status != 'removed' %}<button class="btn" name="action" value="remove" data-confirm="Remove this post from the board?">Remove from the board</button>{% endif %}
+  </form>
+  {% endif %}
+  {% if member and not owner and p.status == 'open' %}<div class="story-tools">{{ flagform('board', p.id) }}</div>{% endif %}
+
+  <section class="comments" id="replies" aria-labelledby="r-h">
+    <div class="c-head"><h2 id="r-h">{{ replies|length }} repl{{ 'y' if replies|length == 1 else 'ies' }}</h2></div>
+    {% if p.status == 'open' and not p.expired %}
+      {% if member %}
+      <form method="post" class="c-form">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <label class="sr" for="r-new">Reply</label>
+        <textarea id="r-new" name="body" required minlength="2" maxlength="2000" placeholder="{{ 'Seen something? Say where and when.' if p.kind == 'lost' else 'Reply to your neighbor. Be kind.' }}"></textarea>
+        <div class="row" style="justify-content:space-between"><span class="meta">Replying as <b>@{{ member.username }}</b></span><button class="btn solid" type="submit">Post reply</button></div>
+      </form>
+      {% else %}<p class="meta"><a href="{{ url_for('members.login', next=request.path) }}" style="text-decoration:underline">Log in</a> or <a href="{{ url_for('members.join') }}" style="text-decoration:underline">join free</a> to reply.</p>{% endif %}
+    {% endif %}
+    {% for r in replies %}
+    <div class="c" id="r{{ r.id }}">
+      <div class="c-meta">{{ vote('breply', r.id, r.upvotes, r.id in voted) }}{{ who(r.username, r.staff_user_id, r.member_id) }}{% if r.member_id == p.member_id %}<span class="meta">(poster)</span>{% endif %}<span class="meta">{{ r.created_at|ago }}{% if r.status == 'held' %} · waiting for a quick look{% endif %}</span></div>
+      <div class="c-body">{{ r.body|plain }}</div>
+      {% if member and r.member_id != member.id and r.status == 'visible' %}<div class="story-tools">{{ flagform('breply', r.id) }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

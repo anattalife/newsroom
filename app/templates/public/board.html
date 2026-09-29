@@ -1,0 +1,49 @@
+{% extends "public/base.html" %}
+{% set tab = 'board' %}
+{% block title %}Community Board · {{ S.site_name }}{% endblock %}
+{% block og %}<meta property="og:site_name" content="{{ S.site_name }}"><meta property="og:type" content="website"><meta property="og:title" content="Community Board · {{ S.site_name }}"><meta property="og:description" content="Lost pets, garage sales, free stuff and questions for your neighbors.">{% endblock %}
+{% block content %}
+<div class="wrap bd-wrap">
+  <h1 class="bd-h">Community Board</h1>
+  <p class="meta bd-sub">Lost pets, garage sales, free stuff and questions for your neighbors. Free to post; posts come down on their own after 14 days.</p>
+  <nav class="pills bd-pills" aria-label="Kinds of posts">
+    <a href="{{ url_for('board.board_page') }}" {% if not kind %}aria-current="page"{% endif %}>Everything</a>
+    {% for k, icon, label, _d in kinds %}<a href="{{ url_for('board.board_page', kind=k) }}" {% if kind == k %}aria-current="page"{% endif %}>{{ icon }} {{ label }}</a>{% endfor %}
+  </nav>
+  <div class="bd-grid">
+    <div class="bd-main">
+      {% for p in posts if p.pinned %}
+      <a class="bd-alert" href="{{ url_for('board.board_post', pid=p.id) }}">
+        {% if p.photo %}<img src="{{ media_url(p.photo) }}" alt="">{% endif %}
+        <span class="bd-alert-t"><span class="kicker">{{ p.k.icon }} {{ p.k.label }}{% if p.town %} · {{ p.town }}{% endif %}</span>
+          <b>{{ p.title }}</b>{% if p.body %}<span class="bd-ex">{{ p.body|truncate(160) }}</span>{% endif %}
+          <span class="meta">@{{ p.username }} · {{ p.created_at|ago }}{% if p.reply_count %} · {{ p.reply_count }} repl{{ 'y' if p.reply_count == 1 else 'ies' }}{% endif %} · <span class="bd-cta">Seen something? Reply</span></span></span>
+      </a>
+      {% endfor %}
+      <div class="bd-posts">
+      {% for p in posts if not p.pinned %}
+        <a class="bd-post {{ 'done' if p.status == 'done' }}" href="{{ url_for('board.board_post', pid=p.id) }}">
+          {% if p.photo %}<img src="{{ media_url(p.photo) }}" alt="" loading="lazy">{% endif %}
+          <span class="bd-chip k-{{ p.kind }}">{{ p.k.icon }} {{ p.k.label }}</span>
+          <b>{% if p.status == 'done' %}✅ {{ p.k.done }}: {% endif %}{{ p.title }}</b>
+          <span class="meta">{% if p.when_text %}{{ p.when_text }} · {% endif %}{% if p.town %}{{ p.town }} · {% endif %}{{ p.created_at|ago }} · @{{ p.username }}{% if p.reply_count %} · {{ p.reply_count }} repl{{ 'y' if p.reply_count == 1 else 'ies' }}{% endif %}</span>
+        </a>
+      {% else %}
+        {% if not posts %}<p class="meta">Nothing here yet. Be the first to post!</p>{% endif %}
+      {% endfor %}
+      </div>
+    </div>
+    <aside class="bd-side">
+      <a class="btn brand bd-new" href="{{ url_for('board.board_new', kind=kind) if kind else url_for('board.board_new') }}">＋ Post on the board</a>
+      {% if mine %}<section class="box"><h2 class="h-sec">Your posts</h2>
+        {% for p in mine %}<a class="bd-mine" href="{{ url_for('board.board_post', pid=p.id) }}"><b>{{ p.title }}</b><span class="meta">{% if p.status == 'done' %}{{ p.k.done }}{% elif p.expired %}Came down {{ p.expires_at|ago }}{% else %}Comes down {{ p.expires_at|localdate(false) }}{% endif %}</span></a>{% endfor %}
+      </section>{% endif %}
+      <section class="box"><h2 class="h-sec">Board rules</h2>
+        <ul class="bd-rules"><li>Members only, and free</li><li>Posts come down after 14 days (you can renew once)</li>
+          <li>No business ads. Businesses can become a <a href="{{ url_for('members.partners') }}">Community Partner</a>, free</li>
+          <li>No weapons, animals for sale, or anything illegal</li><li>Be kind. Flag anything that breaks the rules</li></ul></section>
+      <section class="box"><h2 class="h-sec">🐾 Lost pets get top spot</h2><p class="meta" style="margin:0">Lost &amp; found posts stay pinned at the top for 3 days and go out on our Facebook page.</p></section>
+    </aside>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "public/base.html" %}
+{% set tab = 'board' %}
+{% block title %}Post on the board · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap bd-wrap bd-one">
+  <a class="meta" href="{{ url_for('board.board_page') }}">← Community Board</a>
+  <h1 class="bd-title">Post on the board</h1>
+  {% if error %}<div class="err" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" enctype="multipart/form-data" class="form bd-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <fieldset class="bd-kinds"><legend>What kind of post?</legend>
+      {% for k, icon, label, _d in kinds %}<label><input type="radio" name="kind" value="{{ k }}" required {{ 'checked' if kind == k }}><span>{{ icon }} {{ label }}</span></label>{% endfor %}
+    </fieldset>
+    <label class="f">Title<input type="text" name="title" maxlength="120" required placeholder="Missing: brown lab mix, red collar" value="{{ f.title or '' }}"></label>
+    <label class="f">Details<textarea name="body" maxlength="3000" rows="5" placeholder="Where, when, what it looks like, price…">{{ f.body or '' }}</textarea></label>
+    <div class="bd-two">
+      <label class="f">Town<input type="text" name="town" maxlength="60" list="towns" placeholder="Hillsdale" value="{{ f.town or '' }}"><datalist id="towns">{% for t in towns %}<option value="{{ t }}">{% endfor %}</datalist></label>
+      <label class="f"><span>Date and time <em class="meta" style="font-style:normal;font-weight:400">(for garage sales)</em></span><input type="text" name="when_text" maxlength="80" placeholder="Fri–Sat, Oct 2–3, 8 a.m.–3 p.m." value="{{ f.when_text or '' }}"></label>
+    </div>
+    <label class="f"><span>Photo <em class="meta" style="font-style:normal;font-weight:400">(optional; location data is removed)</em></span><input type="file" name="photo" accept="image/jpeg,image/png"></label>
+    <fieldset class="bd-reach"><legend>How people reach you</legend>
+      <p class="meta" style="margin:0">Neighbors reply right on your post, and you get a notice.</p>
+      <label class="check small-check"><input type="checkbox" name="show_phone" {{ 'checked' if f.show_phone }}> <span>Also show my phone number (only to members who are logged in)</span></label>
+      <input type="tel" name="phone" maxlength="30" placeholder="517-555-0123" value="{{ f.phone or '' }}" aria-label="Phone number">
+    </fieldset>
+    <button class="btn brand bd-new" type="submit">Post it</button>
+    <p class="meta" style="margin:0">It goes up right away and comes down on its own after 14 days. You can mark it found, sold or answered anytime. No business ads, please: businesses can become a <a href="{{ url_for('members.partners') }}" style="text-decoration:underline">Community Partner</a> for free.</p>
+  </form>
+</div>
+{% endblock %}

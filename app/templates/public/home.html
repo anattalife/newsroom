@@ -65,6 +65,7 @@
       <a href="{{ url_for('public.tip') }}" class="meta" style="text-decoration:underline">Want to leave your name or stay anonymous? Use the full tip form.</a>
     </section>
     {% endif %}
+    <div class="bottom-col">
     {% if events or S.home_show_events %}
     <section class="box" aria-labelledby="ev-h">
       <h2 class="h-sec" id="ev-h">Upcoming events</h2>
@@ -74,6 +75,14 @@
       <a href="{{ url_for('public.events') }}" style="color:var(--blue);font-weight:600;font-size:14px">All events</a>
     </section>
     {% endif %}
+    <section class="box" aria-labelledby="bd-h">
+      <h2 class="h-sec" id="bd-h">Community board</h2>
+      {% for p in board_posts %}
+      <a class="ev" href="{{ url_for('board.board_post', pid=p.id) }}"><span class="kicker" style="color:{{ 'var(--brand)' if p.pinned else 'var(--muted)' }}">{{ p.k.icon }} {{ p.k.label }}{% if p.town %} · {{ p.town }}{% endif %}</span><b>{% if p.status == 'done' %}✅ {% endif %}{{ p.title }}</b></a>
+      {% else %}<p class="meta" style="margin:0">Lost a pet? Having a garage sale? Need a recommendation? Post it free.</p>{% endfor %}
+      <a href="{{ url_for('board.board_page') }}" style="color:var(--blue);font-weight:600;font-size:14px">See the board · Post something</a>
+    </section>
+    </div>
   </div>
 </div>
 {% endblock %}

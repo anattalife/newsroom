@@ -15,6 +15,8 @@
   {% elif p.mine %}
     <p class="ci-mine">🔒 You called it: <b>{{ p.mine.value|replace('-', '–') }}{{ (' ' ~ p.unit) if p.unit and p.kind == 'number' }}</b></p>
   {% elif p.closed %}
+  {% elif member and member.staff_user_id %}
+    <p class="meta">Call It is for readers, so the newsroom sits this one out.</p>
   {% elif member %}
     <form method="post" action="{{ url_for('public.callit_guess', pid=p.id) }}" class="ci-form">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">

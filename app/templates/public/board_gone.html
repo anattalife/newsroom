@@ -1,0 +1,10 @@
+{% extends "public/base.html" %}
+{% set tab = 'board' %}
+{% block title %}Post no longer up · {{ S.site_name }}{% endblock %}
+{% block content %}
+<div class="wrap bd-wrap bd-one">
+  <h1 class="bd-title">This post isn't up any more</h1>
+  <p class="meta">Posts on the Community Board come down on their own after 14 days, or once they're marked found, sold or answered.</p>
+  <p><a class="btn" href="{{ url_for('board.board_page') }}">See what's on the board now</a></p>
+</div>
+{% endblock %}

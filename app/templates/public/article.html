@@ -36,7 +36,7 @@
       {% for c in s.public_cites %}<a href="{{ c.url }}" rel="nofollow noopener" target="_blank">{{ c.title or c.name }}</a>{% endfor %}
     </section>
     {% endif %}
-    {% if s.kind == 'story' and not s.wire and not (s.member_id and s.credit == 'byline' and not s.dev) %}<p class="disclosure">{{ S.ai_disclosure }} <a href="{{ url_for('public.page', name='ai') }}">How we use AI</a> · <a href="{{ url_for('public.page', name='corrections') }}">Report a correction</a></p>{% endif %}
+    <p class="disclosure"><a href="{{ url_for('public.page', name='corrections') }}">Report a correction</a></p>
     {% if member %}<div class="story-tools">{{ flagform('story', s.id) }}</div>{% endif %}
 
     {% if comments_on %}

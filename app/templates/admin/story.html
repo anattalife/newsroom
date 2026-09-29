@@ -204,6 +204,7 @@
     <summary>Share to social media</summary>
     <div class="np-in">
       <input type="hidden" name="share_form" value="1">
+      {% if s.org_id %}<p class="small muted" style="margin:0">Community Partner posts go out on your Facebook page automatically. Untick it to skip this one.</p>{% endif %}
       <label class="opt-row" style="padding:6px 0"><input type="checkbox" checked disabled> <span style="flex:1">Website and app</span><span class="small muted">Always</span></label>
       {% if not site_url_set %}<p class="small" style="color:var(--amber);margin:4px 0">Set your website address in Settings → Publication so posts can link to it.</p>{% endif %}
       {% for key, label, ok in platforms %}{% set cur = share.get(key) or {} %}
