@@ -422,7 +422,7 @@ class NewsroomTest(unittest.TestCase):
         self.assertTrue(s["image"].startswith("card-"))
         r = self.c.get("/story/" + s["slug"])
         self.assertIn(s["headline"], r.text)
-        self.assertIn("AI assistance", r.text)
+        self.assertNotIn("AI assistance", r.text)  # no AI note on articles; the How we use AI page covers it
         self.assertEqual(self.c.get("/media/" + s["image"]).status_code, 200)
         home = self.c.get("/").text
         self.assertIn(s["headline"], home.split('class="lead"')[1][:2000])  # featured story leads the homepage
@@ -2138,6 +2138,199 @@ class NewsroomTest(unittest.TestCase):
             self.assertEqual(r.status_code, 200, url)
             self.assertNotIn("Scores &amp; schedules →", r.text, url)
         self.assertIn("Scores &amp; schedules →", self.c.get("/category/sports").text)
+
+    def test_42_no_ai_note_on_articles(self):
+        # the How we use AI page explains it; articles never carry an AI note
+        d = self.db()
+        for r in d.q("SELECT slug FROM stories WHERE status='published' LIMIT 20"):
+            page = self.c.get("/story/" + r["slug"]).text
+            self.assertNotIn("AI assistance", page)
+            self.assertIn("Report a correction", page)
+        self.assertIn("How we use AI", self.c.get("/").text)  # still in the footer
+        self.assertNotIn("ai_disclosure", self.c.get("/admin/settings/review").text)
+
+    def test_43_staff_never_compete(self):
+        from app import community, callit, settings as st
+        d = self.db()
+        if not self.mid("pat_news"):
+            self.post("/admin/account/profile", {"username": "pat_news"})
+        staff = self.mid("pat_news")
+        # upvotes on a staff comment earn nothing
+        story = d.one("SELECT * FROM stories WHERE status='published' AND kind='story' ORDER BY id")
+        self.post("/comment", {"story_id": story["id"], "body": "Staff note: the parade route changed."})
+        cid = d.val("SELECT MAX(id) FROM comments WHERE member_id=?", (staff,))
+        fan = self.member_client("staff_fan")
+        self.post("/vote", {"target": "comment", "id": cid}, client=fan, headers={"X-Requested-With": "fetch"})
+        self.assertFalse(community.award(d, staff, 50, "test", "t:1"))
+        self.assertEqual(d.val("SELECT points FROM members WHERE id=?", (staff,)), 0)
+        self.assertEqual(d.val("SELECT COUNT(*) FROM points_log WHERE member_id=?", (staff,)), 0)
+        # only the Staff badge
+        community.check_badges(d, staff)
+        slugs = [r["slug"] for r in d.q("SELECT b.slug FROM member_badges mb JOIN badges b ON b.id=mb.badge_id "
+                                          "WHERE mb.member_id=?", (staff,))]
+        self.assertTrue(set(slugs) <= {"staff"}, slugs)
+        # not on any leaderboard
+        guest = self.app.test_client()
+        for q in ("", "?period=all", "?period=month"):
+            self.assertNotIn("@pat_news", guest.get("/leaderboard" + q).text)
+        # Call It: the newsroom can't play, and a staff guess from before never wins
+        p = callit.create(d, story["id"], "How many floats in the parade?", "number",
+                          (datetime.now(timezone.utc) + timedelta(days=2)).isoformat(timespec="seconds"),
+                          lo=0, hi=50, step=1)
+        pid = p if isinstance(p, int) else p["id"]
+        pr = callit.decorate(d, callit.get(d, pid))
+        with self.assertRaises(ValueError):
+            callit.guess(d, pr, d.one("SELECT * FROM members WHERE id=?", (staff,)), "20")
+        d.insert("guesses", prediction_id=pid, member_id=staff, value="20", num=20, created_at=dbm.now())
+        callit.guess(d, pr, d.one("SELECT * FROM members WHERE username='staff_fan'"), "30")
+        callit.resolve(d, callit.get(d, pid), "20")
+        won = d.one("SELECT m.username FROM guesses g JOIN members m ON m.id=g.member_id WHERE g.prediction_id=? "
+                    "AND g.won=1", (pid,))
+        self.assertEqual(won["username"], "staff_fan")
+        # the one-time cleanup takes back anything earned before this change
+        d.run("INSERT INTO points_log(member_id,points,reason,ref,created_at) VALUES(?,?,?,?,?)",
+              (staff, 25, "comment_upvote", "old:1", dbm.now()))
+        community.remove_staff_from_games(d)
+        self.assertEqual(d.val("SELECT COALESCE(SUM(points),0) FROM points_log WHERE member_id=?", (staff,)), 0)
+        self.assertEqual(d.val("SELECT COUNT(*) FROM crowns WHERE member_id=?", (staff,)), 0)
+
+    def test_44_partner_posts_go_to_facebook(self):
+        from app import social
+        d = self.db()
+        mid = None
+        m = self.member_client("fb_partner")
+        mid = self.mid("fb_partner")
+        org = d.insert("orgs", name="Grace Church", slug="grace-church-fb", category="Faith & Churches",
+                       member_id=mid, status="approved", created_at=dbm.now())
+        body = "<p>" + "Grace Church holds its harvest dinner Saturday at 5 p.m. in the fellowship hall. " * 2 + "</p>"
+        on = lambda db, p: p == "facebook"  # noqa: E731 — pretend only Facebook is connected
+        with mock.patch("app.social.connected", side_effect=on):
+            # a partner post published from the submissions page goes to Facebook
+            self.post("/submit/new/article", {"action": "submit", "headline": "Harvest dinner Saturday", "body": body,
+                                              "category": "Faith & Churches", "by": f"org:{org}"}, client=m)
+            sub = d.one("SELECT * FROM submissions WHERE member_id=? ORDER BY id DESC", (mid,))
+            self.post(f"/admin/members/submissions/{sub['id']}", {"action": "publish"})
+            s = d.one("SELECT * FROM stories WHERE submission_id=?", (sub["id"],))
+            self.assertEqual(json.loads(s["social"])["facebook"]["status"], "pending")
+            # the editor shows it ticked, with a note
+            page = self.c.get(f"/admin/story/{s['id']}").text
+            self.assertIn("go out on your Facebook page automatically", page)
+            # the same member posting as themselves: not shared automatically
+            self.post("/submit/new/article", {"action": "submit", "headline": "My garden is huge", "body": body,
+                                              "category": "Local News", "by": "me"}, client=m)
+            sub = d.one("SELECT * FROM submissions WHERE member_id=? ORDER BY id DESC", (mid,))
+            self.post(f"/admin/members/submissions/{sub['id']}", {"action": "publish"})
+            s2 = d.one("SELECT * FROM stories WHERE submission_id=?", (sub["id"],))
+            self.assertNotIn("facebook", json.loads(s2["social"] or "{}"))
+            # a partner post the editor unticks isn't shared
+            self.post("/submit/new/article", {"action": "submit", "headline": "Choir practice moves", "body": body,
+                                              "category": "Faith & Churches", "by": f"org:{org}"}, client=m)
+            sub = d.one("SELECT * FROM submissions WHERE member_id=? ORDER BY id DESC", (mid,))
+            r = self.post(f"/admin/members/submissions/{sub['id']}", {"action": "edit"})
+            sid = int(r.headers["Location"].rsplit("/", 1)[1])
+            self.assertIn('name="share_facebook" checked', self.c.get(f"/admin/story/{sid}").text)
+            self.approve(sid, share_form="1")
+            share = json.loads(d.val("SELECT social FROM stories WHERE id=?", (sid,)))
+            self.assertFalse(share["facebook"]["on"])
+            self.assertNotEqual(share["facebook"].get("status"), "pending")
+
+    def test_45_community_board(self):
+        from app import board, settings as st
+        d = self.db()
+        poster = self.member_client("board_poster")
+        pid_m = self.mid("board_poster")
+        neighbor = self.member_client("board_neighbor")
+        guest = self.app.test_client()
+        # the board, the menu link and the homepage box
+        self.assertEqual(guest.get("/board").status_code, 200)
+        self.assertIn("Local News", guest.get("/board").text)  # the site's normal menu shows
+        self.assertIn("Community board", guest.get("/").text)
+        # posting needs an account
+        self.assertIn("/login", guest.get("/board/new").headers["Location"])
+        # a lost pet: pinned, queued for Facebook, photo location removed
+        r = self.post("/board/new", {"kind": "lost", "title": "Missing: brown lab, red collar", "town": "Hillsdale",
+                                     "body": "Got out near Budlong and West St. Answers to Buster.",
+                                     "photo": (jpeg_with_gps(), "dog.jpg")}, client=poster,
+                      content_type="multipart/form-data")
+        pid = int(r.headers["Location"].rsplit("/", 1)[1])
+        p = d.one("SELECT * FROM board_posts WHERE id=?", (pid,))
+        self.assertEqual((p["kind"], p["status"], p["member_id"]), ("lost", "open", pid_m))
+        self.assertTrue(p["pinned_until"] > dbm.now())
+        self.assertIn("pending", p["social"])
+        self.assertNotIn(b"PhoneMaker", open(os.path.join(os.environ["NEWSROOM_DATA"], "uploads", p["photo"]), "rb").read())
+        page = guest.get("/board").text
+        self.assertIn("bd-alert", page)
+        self.assertIn("Missing: brown lab", page)
+        self.assertEqual(guest.get("/media/" + p["photo"]).status_code, 200)
+        # no points for posting
+        self.assertEqual(d.val("SELECT COUNT(*) FROM points_log WHERE member_id=?", (pid_m,)), 0)
+        # the phone number only shows to members who are logged in
+        r = self.post("/board/new", {"kind": "sale", "title": "Chest freezer, works great, $75", "show_phone": "on",
+                                     "phone": "517-555-0123"}, client=poster)
+        sale = int(r.headers["Location"].rsplit("/", 1)[1])
+        self.assertNotIn("517-555-0123", guest.get(f"/board/{sale}").text)
+        self.assertIn("517-555-0123", neighbor.get(f"/board/{sale}").text)
+        # a reply notifies the poster; upvotes on a helpful reply earn the usual social points
+        self.post(f"/board/{pid}", {"body": "Saw a brown lab by the park on Fayette ten minutes ago."}, client=neighbor)
+        rep = d.one("SELECT * FROM board_replies WHERE post_id=? ORDER BY id DESC", (pid,))
+        if rep["status"] == "held":  # a new member's first replies wait for the newsroom
+            self.assertIn("Fayette", self.c.get("/admin/community/flags?tab=held").text)
+            self.post("/admin/community/flags", {"action": "rapprove", "rid": rep["id"]})
+        self.assertEqual(d.val("SELECT reply_count FROM board_posts WHERE id=?", (pid,)), 1)
+        self.assertTrue(d.val("SELECT 1 FROM notices WHERE member_id=? AND link LIKE ?", (pid_m, f"/board/{pid}%")))
+        before = d.val("SELECT points FROM members WHERE username='board_neighbor'")
+        r = self.post("/vote", {"target": "breply", "id": rep["id"]}, client=poster, headers={"X-Requested-With": "fetch"})
+        self.assertTrue(r.get_json()["ok"])
+        self.assertGreater(d.val("SELECT points FROM members WHERE username='board_neighbor'"), before)
+        # only the poster can mark it done; it stays up a day as Reunited, then drops off
+        self.assertEqual(self.post(f"/board/{pid}/manage", {"action": "done"}, client=neighbor).status_code, 403)
+        self.post(f"/board/{pid}/manage", {"action": "done"}, client=poster)
+        self.assertIn("Reunited", guest.get("/board").text)
+        d.run("UPDATE board_posts SET done_at='2020-01-01T00:00:00+00:00' WHERE id=?", (pid,))
+        self.assertNotIn("Missing: brown lab", guest.get("/board").text)
+        self.assertEqual(guest.get(f"/board/{pid}").status_code, 410)
+        # posts come down after 14 days; the poster can renew once
+        d.run("UPDATE board_posts SET expires_at='2020-01-01T00:00:00+00:00' WHERE id=?", (sale,))
+        self.assertNotIn("Chest freezer", guest.get("/board").text)
+        self.post(f"/board/{sale}/manage", {"action": "renew"}, client=poster)
+        self.assertIn("Chest freezer", guest.get("/board").text)
+        self.assertEqual(d.val("SELECT renewed FROM board_posts WHERE id=?", (sale,)), 1)
+        self.assertNotIn('value="renew"', poster.get(f"/board/{sale}").text)
+        # flags reach Comments and flags; the newsroom can remove a post
+        self.post("/flag", {"target": "board", "id": sale, "reason": "spam"}, client=neighbor)
+        self.assertIn("Chest freezer", self.c.get("/admin/community/flags?tab=flags").text)
+        self.post("/admin/community/flags", {"action": "bremove", "bid": sale})
+        self.assertEqual(d.val("SELECT status FROM board_posts WHERE id=?", (sale,)), "removed")
+        self.assertEqual(guest.get(f"/board/{sale}").status_code, 404)
+        # filter by kind
+        self.post("/board/new", {"kind": "ask", "title": "Anyone know a good piano teacher?"}, client=neighbor)
+        self.assertIn("piano teacher", guest.get("/board?kind=ask").text)
+        self.assertNotIn("piano teacher", guest.get("/board?kind=free").text)
+        # lost pets go out on Facebook when it's connected
+        r = self.post("/board/new", {"kind": "lost", "title": "Found: gray cat on Carleton Rd"}, client=neighbor)
+        cat = int(r.headers["Location"].rsplit("/", 1)[1])
+        st.put(d, "site_url", "https://news.example")
+        sent = []
+        with mock.patch("app.social.connected", return_value=True):
+            board.share_pending(d, poster=lambda db, s, text, link: sent.append((text, link)) or "https://fb/1")
+        self.assertTrue(any(link.endswith(f"/board/{cat}") for _t, link in sent))
+        self.assertIn("posted", d.val("SELECT social FROM board_posts WHERE id=?", (cat,)))
+
+    def test_46_local_history_section(self):
+        from app import settings as st
+        d = self.db()
+        self.assertIn("Local History", st.DEFAULT_CATEGORIES)  # new sites get it
+        # an existing site gets it added once, without losing its own sections
+        old = st.get(d, "categories")
+        d.run("DELETE FROM settings WHERE key='_migrated_local_history'")
+        st.put(d, "categories", ["Local News", "Sports", "Weather"])
+        st.migrate(d)
+        self.assertEqual(st.get(d, "categories")[:4], ["Local News", "Sports", "Local History", "Weather"])
+        self.assertEqual(st.subcategories(d, "Local History"),
+                         ["Then & Now", "Old Photos", "People & Places", "This Week in History"])
+        page = self.app.test_client().get("/category/local-history").text
+        self.assertIn("Then &amp; Now", page)
+        st.put(d, "categories", old)
 
 if __name__ == "__main__":
     unittest.main()
